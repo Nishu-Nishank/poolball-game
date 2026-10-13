@@ -124,13 +124,19 @@ environment variable, and only for an **existing, email-verified** Supabase user
 Superadmin records cannot be edited or removed from the UI, and a database trigger rejects any
 change that would remove or demote the last active superadmin — even direct SQL.
 
-### 3. Vercel
+### 3. Hosting (Netlify or Vercel)
 
-1. Import the repository in Vercel (framework preset **Vite**; build `npm run build`, output `dist`
-   — `vercel.json` also adds SPA rewrites and security headers).
-2. Add the environment variables below (Production and Preview).
-3. Deploy. Then add the deployment URL to Supabase *Redirect URLs* (step 5 above) and to
-   `ALLOWED_ORIGINS` of the Edge Function.
+The app is a static build, so either host works; `netlify.toml` and `vercel.json` both configure the
+SPA fallback and security headers.
+
+**Netlify:** *Add new site → Import an existing project* → pick the GitHub repository. Build command
+`npm run build`, publish directory `dist` (read from `netlify.toml`). Add the environment variables
+below under *Site configuration → Environment variables*, then deploy.
+
+**Vercel:** import the repository (framework preset **Vite**), add the environment variables, deploy.
+
+Afterwards add the site URL to Supabase *Redirect URLs* (step 5 above) and to `ALLOWED_ORIGINS` of
+the Edge Function.
 
 ### Environment variables
 
