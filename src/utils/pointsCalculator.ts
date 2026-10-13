@@ -1,0 +1,130 @@
+import type { EvaluatedMatch, MatchRecord, PointAward } from '../types/tournament.ts';
+
+/**
+ * Points rule: for every completed, unambiguous match the winner receives points equal to
+ * the number of balls lost by the losing team. The loser receives nothing.
+ *
+ * Validation is deliberately strict — anything that would require guessing is flagged and
+ * excluded from the official standings instead of being silently counted or dropped.
+ */
+export function evaluateMatches(matches: MatchRecord[]): EvaluatedMatch[] {
+  const evaluated = matches.map(evaluateMatch);
+  return resolveDuplicateIds(evaluated);
+}
+
+export function calculatePoints(evaluated: EvaluatedMatch[]): PointAward[] {
+  return evaluated
+    .filter((m) => m.state === 'counted')
+    .map((m) => ({
+      matchId: m.id,
+      hasWorkbookId: m.hasWorkbookId,
+      round: m.round,
+      date: m.date,
+      order: m.order,
+      winnerId: m.winner as string,
+      loserId: m.loser as string,
+      ballsLost: m.ballsLost as number,
+      points: m.points,
+    }));
+}
+
+function evaluateMatch(m: MatchRecord): EvaluatedMatch {
+  const result = (state: EvaluatedMatch['state'], reasons: string[] = []): EvaluatedMatch => ({
+    ...m,
+    state,
+    loser: null,
+    points: 0,
+    reasons,
+  });
+
+  const hasResult = m.winnerRaw.trim() !== '';
+
+  if (m.completed === false) {
+    // A result typed into a row whose status says "not complete" is contradictory.
+    if (hasResult && m.statusRaw.trim() === '') {
+      return result('flagged', ['Winner is recorded but the match status is empty (not confirmed).']);
+    }
+    if (hasResult) {
+      return result('flagged', [`Winner is recorded but the status is "${m.statusRaw}".`]);
+    }
+    return result('pending');
+  }
+
+  if (!hasResult) {
+    return m.completed === true
+      ? result('flagged', ['Match is marked complete but no winner is recorded.'])
+      : result('pending');
+  }
+
+  const reasons = [...m.parseIssues];
+  if (!m.teamA || !m.teamB) {
+    reasons.push('Both teams must be identifiable to count the match.');
+  } else if (m.teamA === m.teamB) {
+    reasons.push('A team cannot play against itself.');
+  }
+  if (m.winner === null) {
+    reasons.push(`Winner "${m.winnerRaw}" does not match a known team.`);
+  } else if (m.teamA && m.teamB && m.winner !== m.teamA && m.winner !== m.teamB) {
+    reasons.push(`Winner "${m.winnerRaw}" is not one of the two teams in this match.`);
+  }
+  if (m.ballsLost === null) {
+    reasons.push(
+      m.ballsLostRaw.trim() === ''
+        ? 'Balls lost by the losing team is not recorded.'
+        : `Balls lost "${m.ballsLostRaw}" is not a valid whole number.`,
+    );
+  }
+  if (reasons.length > 0) return result('flagged', reasons);
+
+  const loser = m.winner === m.teamA ? m.teamB : m.teamA;
+  return { ...m, state: 'counted', loser, points: m.ballsLost as number, reasons: [] };
+}
+
+/**
+ * Prevents counting a match twice. Rows sharing a workbook match id are counted once when they
+ * describe the same result; when they disagree, all of them are flagged rather than picking one.
+ */
+function resolveDuplicateIds(matches: EvaluatedMatch[]): EvaluatedMatch[] {
+  const groups = new Map<string, number[]>();
+  matches.forEach((m, i) => {
+    if (!m.hasWorkbookId) return;
+    const key = m.id.trim().toLowerCase();
+    groups.set(key, [...(groups.get(key) ?? []), i]);
+  });
+
+  const out = [...matches];
+  for (const indexes of groups.values()) {
+    if (indexes.length < 2) continue;
+    const signatures = new Set(indexes.map((i) => resultSignature(out[i])));
+    if (signatures.size === 1) {
+      indexes.slice(1).forEach((i) => {
+        out[i] = {
+          ...out[i],
+          state: 'duplicate',
+          points: 0,
+          reasons: [`Repeats match ${out[i].id}; counted only once.`],
+        };
+      });
+    } else {
+      const rows = indexes.map((i) => out[i].source.row).join(', ');
+      indexes.forEach((i) => {
+        out[i] = {
+          ...out[i],
+          state: 'flagged',
+          loser: null,
+          points: 0,
+          reasons: [
+            ...out[i].reasons,
+            `Match id "${out[i].id}" appears on rows ${rows} with different results.`,
+          ],
+        };
+      });
+    }
+  }
+  return out;
+}
+
+function resultSignature(m: EvaluatedMatch): string {
+  const pair = [m.teamA ?? '', m.teamB ?? ''].sort().join('|');
+  return [m.state, pair, m.winner ?? '', m.ballsLost ?? ''].join('#');
+}

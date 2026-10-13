@@ -1,0 +1,16 @@
+node_modules
+dist
+# Environment files with real settings (only the *.example templates are committed)
+.env
+*.local
+server/.env
+# Real tournament data is not committed; drop the workbook into public/data/ locally.
+public/data/*.xlsx
+public/data/*.csv
+# Supabase
+supabase/.temp
+supabase/functions/.env
+.vercel
+
+# Claude Code local permission settings
+.claude/settings.local.json

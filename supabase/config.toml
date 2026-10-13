@@ -1,0 +1,34 @@
+# Supabase CLI configuration. Settings not listed here use the CLI defaults.
+# Applied to the linked project with `npx supabase config push`.
+project_id = "miytjsqgizfirdukpcka"
+
+[functions.upload-dataset]
+# The function verifies the access token itself (supabase.auth.getUser) and re-checks the caller's
+# role in the database on every request, so the gateway check is not needed — disabling it also
+# lets browser CORS preflight (OPTIONS, no token) reach the function.
+verify_jwt = false
+
+[auth]
+# Where sign-in links may return to. Add the Vercel URL here after the first deployment.
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/login", "http://localhost:5175/login"]
+
+[auth.email]
+# An account alone grants nothing: roles come only from admin_users (see the migration).
+enable_signup = true
+double_confirm_changes = true
+enable_confirmations = true
+# One-time codes: 6 digits, valid for one hour.
+otp_length = 6
+otp_expiry = 3600
+
+# Requires custom SMTP (configured in the dashboard: Project Settings -> Authentication -> SMTP).
+# Emails both a one-time code ({{ .Token }}) and a sign-in link; the login page accepts either.
+[auth.email.template.magic_link]
+subject = "Your 4IBC dashboard sign-in code"
+content_path = "./supabase/templates/magic_link.html"
+
+[auth.rate_limit]
+# Sign-in emails per hour for the whole project (the built-in sender allows only ~2; custom SMTP
+# removes that cap). Brevo's free plan allows 300 emails per day.
+email_sent = 60

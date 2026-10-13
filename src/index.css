@@ -1,0 +1,15 @@
+/* MUI styles live in the "mui" layer so Tailwind utilities can override them predictably. */
+@layer theme, base, mui, components, utilities;
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+body {
+  background: #f3f5f9;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}

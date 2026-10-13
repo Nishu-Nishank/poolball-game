@@ -1,0 +1,42 @@
+{
+  "name": "poolball-statistics",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "server": "node --env-file-if-exists=server/.env server/index.ts",
+    "start": "npm run build && npm run server",
+    "build": "npm run sync:shared && tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "sync:shared": "node scripts/sync-shared.mjs",
+    "functions:deploy": "npm run sync:shared && supabase functions deploy upload-dataset"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^9.5.0",
+    "@mui/material": "^9.5.0",
+    "@supabase/supabase-js": "^2.117.3",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "eslint": "^10.12.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
+    "globals": "^17.13.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vite": "^8.3.4"
+  }
+}

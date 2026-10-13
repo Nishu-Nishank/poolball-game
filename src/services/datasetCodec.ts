@@ -1,0 +1,32 @@
+/**
+ * Format of a published dataset as stored in Postgres (`datasets.data`, jsonb).
+ * Only the normalized input data is stored; standings are always derived by the existing
+ * calculation code, so there is a single source of truth for scoring.
+ */
+import type { MatchRecord, TournamentData } from '../types/tournament.ts';
+
+export const DATASET_SCHEMA_VERSION = 1;
+
+export function encodeDataset(data: TournamentData): unknown {
+  // JSON round-trip: Dates become ISO strings, undefined values are dropped.
+  return { schemaVersion: DATASET_SCHEMA_VERSION, data: JSON.parse(JSON.stringify(data)) };
+}
+
+export function decodeDataset(raw: unknown): TournamentData {
+  const envelope = raw as { schemaVersion?: unknown; data?: Partial<TournamentData> } | null;
+  const data = envelope?.data;
+  if (
+    envelope?.schemaVersion !== DATASET_SCHEMA_VERSION ||
+    !data ||
+    !Array.isArray(data.teams) ||
+    !Array.isArray(data.matches) ||
+    !Array.isArray(data.issues) ||
+    typeof data.meta !== 'object'
+  ) {
+    throw new Error('The published tournament data has an unsupported format.');
+  }
+  return {
+    ...(data as TournamentData),
+    matches: data.matches.map((m: MatchRecord) => ({ ...m, date: m.date ? new Date(m.date) : null })),
+  };
+}
