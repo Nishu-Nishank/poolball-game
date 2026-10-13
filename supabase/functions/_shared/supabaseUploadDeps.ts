@@ -62,5 +62,16 @@ export function supabaseUploadDeps(admin: SupabaseClient): UploadDeps {
       const { error } = await admin.rpc('audit', { p_actor: actorId, p_action: action, p_target: target, p_details: details });
       fail('audit', error);
     },
+
+    async deleteUpload(uploadId, actorId) {
+      const { data, error } = await admin.rpc('delete_upload', { p_upload_id: uploadId, p_actor: actorId });
+      fail('delete upload', error);
+      return (data as string | null) ?? null;
+    },
+
+    async removeStored(path) {
+      const { error } = await admin.storage.from(UPLOAD_BUCKET).remove([path]);
+      fail('remove stored file', error);
+    },
   };
 }

@@ -194,9 +194,17 @@ Duplicates and invalid addresses are rejected by the database. All changes are w
 
 Rejected and failed uploads are recorded but never become active; the previous dataset stays live.
 
+Two actions are available per history row:
+
+- **Make live** (published uploads only) switches the public dashboard to that upload's dataset;
+  "Last updated" then shows its original publication time. Use it to roll back a bad upload.
+- **Delete** removes the record, its parsed dataset and the original file from the private bucket.
+  The live dataset cannot be deleted (make another one live first); admins may delete only their
+  own uploads, the superadmin any. Deletions are written to `audit_events`.
+
 ### Rolling back to a previous dataset
 
-In the Supabase SQL editor:
+Use **Make live** on the upload page, or, from the Supabase SQL editor:
 
 ```sql
 -- make the upload published immediately before the current one active again

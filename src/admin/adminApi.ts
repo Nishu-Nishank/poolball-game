@@ -36,9 +36,39 @@ export interface UploadHistoryRow {
   is_active: boolean;
   /** Only returned to the superadmin. */
   uploaded_by_email: string | null;
+  /** Uploaded by the signed-in user (admins may delete only these). */
+  is_mine: boolean;
 }
 
 export const getUploadHistory = (limit = 50) => rpc<UploadHistoryRow[]>('get_upload_history', { p_limit: limit });
+
+/** Makes a previously published upload the live dataset again. Returns its original publication time. */
+export const activateUpload = (uploadId: string) => rpc<string>('activate_upload_api', { p_upload_id: uploadId });
+
+/** Deletes an upload, its dataset and the stored file (server-side checks: not live, own uploads for admins). */
+export async function deleteUpload(uploadId: string): Promise<void> {
+  const { data } = await client().auth.getSession();
+  const token = data.session?.access_token;
+  if (!token || !functionsUrl) throw new Error('Your session has expired. Please sign in again.');
+  let res: Response;
+  try {
+    res = await fetch(`${functionsUrl}/upload-dataset`, {
+      method: 'DELETE',
+      headers: {
+        authorization: `Bearer ${token}`,
+        'content-type': 'application/json',
+        ...(publishableKey && { apikey: publishableKey }),
+      },
+      body: JSON.stringify({ uploadId }),
+    });
+  } catch {
+    throw new Error('The upload service could not be reached. Check your connection and try again.');
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(body.error ?? `The upload could not be deleted (HTTP ${res.status}).`);
+  }
+}
 
 export interface PreviewTeam {
   id: string;

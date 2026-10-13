@@ -22,8 +22,12 @@ import {
 } from '@mui/material';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined';
+import { IconButton, Tooltip } from '@mui/material';
 import { useAuth } from '../auth/AuthContext';
 import {
+  activateUpload,
+  deleteUpload,
   getUploadHistory,
   MAX_UPLOAD_MB,
   sendUpload,
@@ -58,6 +62,40 @@ export default function AdminUploadPage() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [message, setMessage] = useState<{ severity: 'success' | 'error' | 'warning'; text: string } | null>(null);
   const [details, setDetails] = useState<UploadHistoryRow | null>(null);
+  const [toDelete, setToDelete] = useState<UploadHistoryRow | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [toActivate, setToActivate] = useState<UploadHistoryRow | null>(null);
+  const [activating, setActivating] = useState(false);
+
+  const confirmActivate = async () => {
+    if (!toActivate) return;
+    setActivating(true);
+    try {
+      await activateUpload(toActivate.id);
+      setMessage({ severity: 'success', text: `${toActivate.file_name} is now live on the public dashboard.` });
+      setToActivate(null);
+    } catch (e) {
+      setMessage({ severity: 'error', text: e instanceof Error ? e.message : 'The upload could not be made live.' });
+    } finally {
+      setActivating(false);
+      void loadHistory();
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!toDelete) return;
+    setDeleting(true);
+    try {
+      await deleteUpload(toDelete.id);
+      setMessage({ severity: 'success', text: `${toDelete.file_name} was deleted, including its stored file.` });
+      setToDelete(null);
+    } catch (e) {
+      setMessage({ severity: 'error', text: e instanceof Error ? e.message : 'The upload could not be deleted.' });
+    } finally {
+      setDeleting(false);
+      void loadHistory();
+    }
+  };
 
   const reset = () => {
     setFile(null);
@@ -271,6 +309,7 @@ export default function AdminUploadPage() {
                   <TableCell align="center">Matches</TableCell>
                   {isSuperadmin && <TableCell>Uploaded by</TableCell>}
                   <TableCell>Details</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -296,6 +335,35 @@ export default function AdminUploadPage() {
                         '—'
                       )}
                     </TableCell>
+                    <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                      {h.status === 'published' && !h.is_active && (
+                        <Button size="small" variant="outlined" onClick={() => setToActivate(h)} sx={{ mr: 0.5 }}>
+                          Make live
+                        </Button>
+                      )}
+                      {(() => {
+                        const reason = h.is_active
+                          ? 'The live dataset cannot be deleted'
+                          : !isSuperadmin && !h.is_mine
+                            ? 'Only your own uploads can be deleted'
+                            : null;
+                        return (
+                          <Tooltip title={reason ?? 'Delete this upload and its file'}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                disabled={reason !== null}
+                                aria-label={`Delete ${h.file_name}`}
+                                onClick={() => setToDelete(h)}
+                              >
+                                <DeleteOutlinedIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        );
+                      })()}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -316,6 +384,46 @@ export default function AdminUploadPage() {
           <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
           <Button variant="contained" color="success" onClick={() => void publish()}>
             Publish
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={toActivate !== null} onClose={() => !activating && setToActivate(null)}>
+        <DialogTitle>Make this upload live?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            The public dashboard will switch to <strong>{toActivate?.file_name}</strong> (published{' '}
+            {toActivate && formatDateTime(toActivate.completed_at ? new Date(toActivate.completed_at) : null)}
+            {toActivate?.team_count != null && `, ${plural(toActivate.team_count, 'team')}`}
+            {toActivate?.match_count != null && `, ${plural(toActivate.match_count, 'match', 'matches')}`}) within a minute.
+            “Last updated” will show that upload’s original publication time. You can switch back the same way.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setToActivate(null)} disabled={activating}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="success" onClick={() => void confirmActivate()} disabled={activating}>
+            {activating ? <CircularProgress size={20} color="inherit" /> : 'Make live'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={toDelete !== null} onClose={() => !deleting && setToDelete(null)}>
+        <DialogTitle>Delete this upload?</DialogTitle>
+        <DialogContent>
+          <Typography>
+            <strong>{toDelete?.file_name}</strong> ({toDelete && formatDateTime(new Date(toDelete.uploaded_at))}) will be removed
+            from the history together with its stored file and parsed data. This cannot be undone. The dashboard is not
+            affected.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setToDelete(null)} disabled={deleting}>
+            Cancel
+          </Button>
+          <Button variant="contained" color="error" onClick={() => void confirmDelete()} disabled={deleting}>
+            {deleting ? <CircularProgress size={20} color="inherit" /> : 'Delete'}
           </Button>
         </DialogActions>
       </Dialog>

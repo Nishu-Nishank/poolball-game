@@ -45,6 +45,9 @@ export interface UploadDeps {
   /** public.publish_dataset — atomic; returns the publication time (UTC ISO string). */
   publish(uploadId: string, data: unknown, summary: ImportSummary, actorId: string): Promise<string>;
   audit(actorId: string, action: string, target: string, details: unknown): Promise<void>;
+  /** public.delete_upload — authorizes and deletes the rows; returns the storage path of the file. */
+  deleteUpload(uploadId: string, actorId: string): Promise<string | null>;
+  removeStored(path: string): Promise<void>;
 }
 
 export interface UploadConfig {
@@ -68,7 +71,7 @@ export async function handleUploadRequest(req: Request, deps: UploadDeps, config
     new Response(JSON.stringify(body), { status, headers: { ...cors, 'content-type': 'application/json' } });
 
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-  if (req.method !== 'POST') return json(405, { error: 'Method not allowed.' });
+  if (req.method !== 'POST' && req.method !== 'DELETE') return json(405, { error: 'Method not allowed.' });
 
   // --- Authentication and authorization (always server-side) ---------------------------------
   const token = /^Bearer\s+(.+)$/i.exec(req.headers.get('authorization') ?? '')?.[1];
@@ -76,6 +79,30 @@ export async function handleUploadRequest(req: Request, deps: UploadDeps, config
   if (!user) return json(401, { error: 'Please sign in again.' });
   const role = await deps.resolveRole(user.id);
   if (!role) return json(403, { error: 'Your account is not authorized to upload tournament data.' });
+
+  // --- Delete an upload (record, dataset and stored file) ------------------------------------
+  if (req.method === 'DELETE') {
+    const body = (await req.json().catch(() => null)) as { uploadId?: unknown } | null;
+    const uploadId = typeof body?.uploadId === 'string' ? body.uploadId : '';
+    if (!/^[0-9a-f-]{36}$/i.test(uploadId)) return json(400, { error: 'No upload was specified.' });
+    let path: string | null;
+    try {
+      // The database function enforces: not the live dataset; admins only their own uploads.
+      path = await deps.deleteUpload(uploadId, user.id);
+    } catch (e) {
+      const message = e instanceof Error ? e.message.replace(/^[^:]*: /, '') : 'The upload could not be deleted.';
+      return json(/cannot be deleted|only delete|not found/i.test(message) ? 403 : 500, { error: message });
+    }
+    let fileRemoved = true;
+    if (path) {
+      try {
+        await deps.removeStored(path);
+      } catch {
+        fileRemoved = false; // record is gone; an orphaned file in the private bucket is harmless
+      }
+    }
+    return json(200, { deleted: uploadId, fileRemoved });
+  }
 
   // --- File checks ---------------------------------------------------------------------------
   const declared = Number(req.headers.get('content-length') ?? 0);
@@ -165,7 +192,7 @@ function corsHeaders(req: Request, config: UploadConfig): Record<string, string>
   const allowed = config.allowedOrigins.includes('*') || config.allowedOrigins.includes(origin);
   return {
     ...(allowed && origin ? { 'access-control-allow-origin': origin, vary: 'Origin' } : {}),
-    'access-control-allow-methods': 'POST, OPTIONS',
+    'access-control-allow-methods': 'POST, DELETE, OPTIONS',
     'access-control-allow-headers': 'authorization, x-client-info, apikey, content-type',
   };
 }

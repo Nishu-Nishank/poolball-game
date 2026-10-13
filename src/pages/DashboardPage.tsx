@@ -107,7 +107,7 @@ export default function DashboardPage() {
             )}
 
             <footer className="flex flex-col gap-1 pt-2 text-center text-xs text-slate-500">
-              <p className="m-0 font-semibold text-slate-600">© 2026 Nishu Nishank. All rights reserved.</p>
+              <p className="m-0 font-semibold text-slate-600">© 2026 4flow India 8-Ball Championship. All rights reserved.</p>
               <p className="m-0">
                 Source: {snapshot.data.meta.fileName} ·{' '}
                 {snapshot.data.meta.teamSheet
