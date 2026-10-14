@@ -1,5 +1,4 @@
-import { AppBar, Chip, CircularProgress, IconButton, Toolbar, Tooltip, Typography } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
+import { AppBar, Chip, IconButton, Toolbar, Tooltip, Typography } from '@mui/material';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import LoginIcon from '@mui/icons-material/Login';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
@@ -11,11 +10,9 @@ interface Props {
   tournamentStatus: string | null;
   sourceLabel: string;
   lastUpdated: Date | null;
-  refreshing: boolean;
-  onRefresh: () => void;
 }
 
-export function Header({ tournamentStatus, sourceLabel, lastUpdated, refreshing, onRefresh }: Props) {
+export function Header({ tournamentStatus, sourceLabel, lastUpdated }: Props) {
   const auth = useAuth();
   // Public viewers get a discreet sign-in link; signed-in administrators get a link to the admin area.
   const adminLink = auth.role
@@ -46,18 +43,6 @@ export function Header({ tournamentStatus, sourceLabel, lastUpdated, refreshing,
             value={formatDateTime(lastUpdated)}
             title="When the tournament results last changed"
           />
-          <Tooltip title="Refresh data">
-            <span>
-              <IconButton
-                onClick={onRefresh}
-                disabled={refreshing}
-                aria-label="Refresh data"
-                sx={{ color: '#fff', bgcolor: 'rgba(255,255,255,0.1)', '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}
-              >
-                {refreshing ? <CircularProgress size={22} sx={{ color: '#fff' }} /> : <RefreshIcon />}
-              </IconButton>
-            </span>
-          </Tooltip>
           <Tooltip title={adminLink.route === 'admin' ? 'Administration' : 'Administrator sign in'}>
             <IconButton
               component="a"

@@ -20,7 +20,7 @@ type View = 'standings' | 'groups' | 'results' | 'breakdown';
 type Stage = 'group' | KnockoutRound;
 
 export default function DashboardPage() {
-  const { snapshot, loading, refreshing, error, lastUpdated, lastRefreshed, source, refresh } = useTournamentData();
+  const { snapshot, loading, error, lastUpdated, lastRefreshed, source, refresh } = useTournamentData();
   const [view, setView] = useState<View>('standings');
   const [stage, setStage] = useState<Stage>('group');
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -42,8 +42,6 @@ export default function DashboardPage() {
         tournamentStatus={snapshot?.data.meta.tournamentStatus ?? null}
         sourceLabel={source.label}
         lastUpdated={lastUpdated}
-        refreshing={refreshing}
-        onRefresh={refresh}
       />
 
       {snapshot && (
