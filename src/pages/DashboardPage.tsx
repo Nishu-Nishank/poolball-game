@@ -42,7 +42,6 @@ export default function DashboardPage() {
         tournamentStatus={snapshot?.data.meta.tournamentStatus ?? null}
         sourceLabel={source.label}
         lastUpdated={lastUpdated}
-        lastRefreshed={lastRefreshed}
         refreshing={refreshing}
         onRefresh={refresh}
       />

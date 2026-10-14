@@ -3,7 +3,7 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import LoginIcon from '@mui/icons-material/Login';
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings';
-import { formatDateTime, formatRefreshTime } from '../../utils/format';
+import { formatDateTime } from '../../utils/format';
 import { useAuth } from '../../auth/AuthContext';
 import { linkProps } from '../../router';
 
@@ -11,12 +11,11 @@ interface Props {
   tournamentStatus: string | null;
   sourceLabel: string;
   lastUpdated: Date | null;
-  lastRefreshed: Date | null;
   refreshing: boolean;
   onRefresh: () => void;
 }
 
-export function Header({ tournamentStatus, sourceLabel, lastUpdated, lastRefreshed, refreshing, onRefresh }: Props) {
+export function Header({ tournamentStatus, sourceLabel, lastUpdated, refreshing, onRefresh }: Props) {
   const auth = useAuth();
   // Public viewers get a discreet sign-in link; signed-in administrators get a link to the admin area.
   const adminLink = auth.role
@@ -46,12 +45,6 @@ export function Header({ tournamentStatus, sourceLabel, lastUpdated, lastRefresh
             label="Last updated"
             value={formatDateTime(lastUpdated)}
             title="When the tournament results last changed"
-          />
-          <div className="hidden h-8 w-px bg-white/20 sm:block" aria-hidden />
-          <HeaderStat
-            label="Last refreshed"
-            value={formatRefreshTime(lastRefreshed)}
-            title="When the dashboard last checked for new results"
           />
           <Tooltip title="Refresh data">
             <span>
