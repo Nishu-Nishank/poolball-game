@@ -146,7 +146,7 @@ function Side(props: {
     <Typography
       component="span"
       className="tabular-nums"
-      sx={{ fontWeight: 800, fontSize: '1.5rem', minWidth: 36, textAlign: 'right', color: won ? colors.win : lost ? 'text.secondary' : 'text.primary' }}
+      sx={{ fontWeight: 800, fontSize: '1.5rem', minWidth: 36, textAlign: 'right', color: won ? colors.win : lost ? colors.loss : 'text.primary' }}
       aria-label={props.racks === null ? 'No score yet' : `${props.racks} racks`}
     >
       {props.racks ?? '–'}
@@ -154,7 +154,7 @@ function Side(props: {
   );
   const content = (
     <>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0">
         {team ? (
           <TeamIdentity team={team} showName size="sm" />
         ) : (
@@ -165,7 +165,7 @@ function Side(props: {
       </div>
       {total !== undefined && (
         <Tooltip title="Total points in the overall leaderboard (group stage + knockout)">
-          <div className="mx-3 shrink-0 text-center leading-none">
+          <div className="ml-1 shrink-0 self-center border-l border-slate-200 pl-3 leading-none">
             <Typography variant="caption" component="div" color="text.secondary" sx={{ letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.625rem' }}>
               Points
             </Typography>
@@ -176,13 +176,14 @@ function Side(props: {
           </div>
         </Tooltip>
       )}
-      <div className="flex w-24 shrink-0 items-center justify-end gap-2">
+      <div className="ml-auto flex shrink-0 items-center justify-end gap-2 pl-3">
         {won && <Chip size="small" label="WON" sx={{ bgcolor: colors.win, color: '#fff' }} />}
+        {lost && <Chip size="small" label="LOST" sx={{ bgcolor: colors.lossSoft, color: colors.loss, border: `1px solid ${colors.loss}33` }} />}
         {score}
       </div>
     </>
   );
-  const className = `!flex !items-center !justify-between gap-3 !px-4 !py-3 text-left ${won ? 'bg-emerald-50' : ''}`;
+  const className = `!flex !items-center gap-3 !px-4 !py-3 text-left ${won ? 'bg-emerald-50' : lost ? 'bg-red-50/60' : ''}`;
   return team ? (
     <ButtonBase onClick={() => props.onSelectTeam(team.id)} aria-label={`${teamLabel(team)} — view team`} className={`${className} hover:bg-slate-50`}>
       {content}
