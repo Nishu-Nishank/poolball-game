@@ -154,7 +154,7 @@ function Side(props: {
   );
   const content = (
     <>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         {team ? (
           <TeamIdentity team={team} showName size="sm" />
         ) : (
@@ -163,18 +163,20 @@ function Side(props: {
           </Typography>
         )}
       </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {total !== undefined && (
-          <Tooltip title="Total points in the overall leaderboard (group stage + knockout)">
-            <Chip
-              size="small"
-              variant="outlined"
-              label={`${total} pts`}
-              className="tabular-nums"
-              sx={{ fontWeight: 700, borderColor: colors.navy, color: colors.navy }}
-            />
-          </Tooltip>
-        )}
+      {total !== undefined && (
+        <Tooltip title="Total points in the overall leaderboard (group stage + knockout)">
+          <div className="mx-3 shrink-0 text-center leading-none">
+            <Typography variant="caption" component="div" color="text.secondary" sx={{ letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.625rem' }}>
+              Points
+            </Typography>
+            <Typography component="div" className="tabular-nums" sx={{ fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.2, color: colors.navy }}>
+              {total}
+              <span className="ml-0.5 text-xs font-semibold text-slate-500">pts</span>
+            </Typography>
+          </div>
+        </Tooltip>
+      )}
+      <div className="flex w-24 shrink-0 items-center justify-end gap-2">
         {won && <Chip size="small" label="WON" sx={{ bgcolor: colors.win, color: '#fff' }} />}
         {score}
       </div>
