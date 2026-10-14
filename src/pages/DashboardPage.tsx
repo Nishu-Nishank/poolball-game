@@ -96,7 +96,7 @@ export default function DashboardPage() {
                     aria-label="Tournament stage"
                     sx={{ minHeight: 44, '& .MuiTab-root': { minHeight: 44 } }}
                   >
-                    <Tab value="group" label="Group Stage" />
+                    <Tab value="group" label="Overall" />
                     {KNOCKOUT_ROUNDS.map((r) => (
                       <Tab key={r} value={r} label={ROUND_LABELS[r]} />
                     ))}
