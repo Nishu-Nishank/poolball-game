@@ -16,9 +16,9 @@ import {
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PersonIcon from '@mui/icons-material/Person';
-import type { EvaluatedMatch, Team, TeamStanding } from '../../types/tournament';
+import type { EvaluatedMatch, KnockoutMatch, Team, TeamStanding } from '../../types/tournament';
 import { teamLabel } from '../../utils/leaderboard';
-import { matchHeading } from '../../utils/format';
+import { allResults } from '../../utils/results';
 import { TeamBadge } from '../common/TeamBadge';
 import { TeamPointsBreakdown } from '../PointsBreakdown/PointsBreakdown';
 import { colors } from '../../theme';
@@ -27,26 +27,28 @@ interface Props {
   open: boolean;
   standing: TeamStanding | null;
   matches: EvaluatedMatch[];
+  knockout?: KnockoutMatch[];
   teamsById: Map<string, Team>;
   onClose: () => void;
 }
 
-export function TeamDetails({ open, standing, matches, teamsById, onClose }: Props) {
+export function TeamDetails({ open, standing, matches, knockout = [], teamsById, onClose }: Props) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
     <Dialog open={open && standing !== null} onClose={onClose} fullScreen={fullScreen} maxWidth="md" fullWidth aria-labelledby="team-details-title">
-      {standing && <TeamDetailsContent standing={standing} matches={matches} teamsById={teamsById} onClose={onClose} />}
+      {standing && <TeamDetailsContent standing={standing} matches={matches} knockout={knockout} teamsById={teamsById} onClose={onClose} />}
     </Dialog>
   );
 }
 
-function TeamDetailsContent({ standing: s, matches, teamsById, onClose }: Omit<Props, 'open' | 'standing'> & { standing: TeamStanding }) {
+function TeamDetailsContent({ standing: s, matches, knockout = [], teamsById, onClose }: Omit<Props, 'open' | 'standing'> & { standing: TeamStanding }) {
   const { team } = s;
-  const played = matches
-    .filter((m) => m.state === 'counted' && (m.winner === team.id || m.loser === team.id))
-    .sort((a, b) => a.order - b.order);
+  // Group and knockout matches this team played, oldest first.
+  const played = allResults(matches, knockout)
+    .filter((r) => r.winnerId === team.id || r.loserId === team.id)
+    .reverse();
 
   return (
     <>
@@ -112,13 +114,11 @@ function TeamDetailsContent({ standing: s, matches, teamsById, onClose }: Omit<P
               </TableHead>
               <TableBody>
                 {played.map((m) => {
-                  const won = m.winner === team.id;
-                  const opponent = teamsById.get((won ? m.loser : m.winner)!);
-                  const label =
-                    matchHeading(m) ||
-                    `Row ${m.source.row}`;
+                  const won = m.winnerId === team.id;
+                  const opponent = teamsById.get(won ? m.loserId : m.winnerId);
+                  const label = m.heading || m.id;
                   return (
-                    <TableRow key={`${m.id}-${m.source.row}`}>
+                    <TableRow key={m.key}>
                       <TableCell>
                         <Typography variant="body2" color="text.secondary">
                           {label}
@@ -142,7 +142,10 @@ function TeamDetailsContent({ standing: s, matches, teamsById, onClose }: Omit<P
                         />
                       </TableCell>
                       <TableCell align="center">
-                        {m.ballsLost} {won ? `by ${opponent ? teamLabel(opponent) : 'opponent'}` : `by ${teamLabel(team)}`}
+                        {m.racks && <span className="mr-1 text-slate-500">racks {m.racks} ·</span>}
+                        {m.ballsLost === null
+                          ? '—'
+                          : `${m.ballsLost} ${won ? `by ${opponent ? teamLabel(opponent) : 'opponent'}` : `by ${teamLabel(team)}`}`}
                       </TableCell>
                       <TableCell align="right">
                         <Typography

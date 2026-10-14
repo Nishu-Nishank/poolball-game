@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { Button, ButtonBase, Chip, Paper, Typography } from '@mui/material';
-import type { EvaluatedMatch, Team } from '../../types/tournament';
+import type { EvaluatedMatch, KnockoutMatch, Team } from '../../types/tournament';
 import { teamLabel } from '../../utils/leaderboard';
-import { matchHeading, plural } from '../../utils/format';
-import { recentFirst } from '../../utils/matches';
+import { plural } from '../../utils/format';
+import { allResults, upcomingMatches, type ResultItem } from '../../utils/results';
 import { TeamIdentity } from '../common/TeamIdentity';
 import { colors } from '../../theme';
 
 interface Props {
   matches: EvaluatedMatch[];
+  knockout?: KnockoutMatch[];
   teamsById: Map<string, Team>;
   onSelectTeam: (teamId: string) => void;
   /** Show only the N most recent results (used on the overview). */
@@ -19,11 +20,11 @@ interface Props {
 
 const PAGE_SIZE = 12;
 
-export function MatchResults({ matches, teamsById, onSelectTeam, limit, onViewAll, compact }: Props) {
+/** Completed matches from both stages as scorecards, newest first, plus the matches still to play. */
+export function MatchResults({ matches, knockout = [], teamsById, onSelectTeam, limit, onViewAll, compact }: Props) {
   const [shown, setShown] = useState(PAGE_SIZE);
-  const completed = matches.filter((m) => m.state === 'counted').sort(recentFirst);
-  const upcoming = matches.filter((m) => m.state === 'pending').sort((a, b) => a.order - b.order);
-  const pending = upcoming.length;
+  const completed = allResults(matches, knockout);
+  const upcoming = upcomingMatches(matches, knockout);
   const visible = completed.slice(0, limit ?? shown);
 
   return (
@@ -34,7 +35,7 @@ export function MatchResults({ matches, teamsById, onSelectTeam, limit, onViewAl
         </Typography>
         <Typography variant="body2" color="text.secondary">
           {plural(completed.length, 'completed match', 'completed matches')}
-          {pending > 0 && ` · ${pending} awaiting result`}
+          {upcoming.length > 0 && ` · ${upcoming.length} to play`}
         </Typography>
       </div>
 
@@ -47,8 +48,8 @@ export function MatchResults({ matches, teamsById, onSelectTeam, limit, onViewAl
         </Paper>
       ) : (
         <div className={compact ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3'}>
-          {visible.map((m) => (
-            <MatchCard key={`${m.id}-${m.source.row}`} match={m} teamsById={teamsById} onSelectTeam={onSelectTeam} compact={compact} />
+          {visible.map((r) => (
+            <MatchCard key={r.key} result={r} teamsById={teamsById} onSelectTeam={onSelectTeam} compact={compact} />
           ))}
         </div>
       )}
@@ -70,19 +71,19 @@ export function MatchResults({ matches, teamsById, onSelectTeam, limit, onViewAl
             Upcoming Matches
           </Typography>
           <Paper className="divide-y divide-slate-100">
-            {upcoming.map((m) => {
-              const a = m.teamA ? teamsById.get(m.teamA) : undefined;
-              const b = m.teamB ? teamsById.get(m.teamB) : undefined;
+            {upcoming.map((u) => {
+              const a = u.teamAId ? teamsById.get(u.teamAId) : undefined;
+              const b = u.teamBId ? teamsById.get(u.teamBId) : undefined;
               return (
-                <div key={`${m.id}-${m.source.row}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5">
-                  <Typography variant="body2" color="text.secondary" className="w-36 shrink-0" sx={{ fontWeight: 600 }}>
-                    {matchHeading(m) || 'Scheduled'}
+                <div key={u.key} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5">
+                  <Typography variant="body2" color="text.secondary" className="w-40 shrink-0" sx={{ fontWeight: 600 }}>
+                    {u.heading}
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {a ? teamLabel(a) : m.teamARaw || 'TBD'} <span className="font-normal text-slate-500">vs</span>{' '}
-                    {b ? teamLabel(b) : m.teamBRaw || 'TBD'}
+                    {a ? teamLabel(a) : u.teamARaw || 'TBD'} <span className="font-normal text-slate-500">vs</span>{' '}
+                    {b ? teamLabel(b) : u.teamBRaw || 'TBD'}
                   </Typography>
-                  <Chip label={m.statusRaw || 'To play'} size="small" variant="outlined" className="ml-auto" />
+                  <Chip label={u.status} size="small" variant="outlined" className="ml-auto" />
                 </div>
               );
             })}
@@ -94,24 +95,22 @@ export function MatchResults({ matches, teamsById, onSelectTeam, limit, onViewAl
 }
 
 interface CardProps {
-  match: EvaluatedMatch;
+  result: ResultItem;
   teamsById: Map<string, Team>;
   onSelectTeam: (teamId: string) => void;
   compact?: boolean;
 }
 
-export function MatchCard({ match: m, teamsById, onSelectTeam, compact }: CardProps) {
-  const winner = teamsById.get(m.winner!);
-  const loser = teamsById.get(m.loser!);
+export function MatchCard({ result: r, teamsById, onSelectTeam, compact }: CardProps) {
+  const winner = teamsById.get(r.winnerId);
+  const loser = teamsById.get(r.loserId);
   if (!winner || !loser) return null;
-
-  const heading = matchHeading(m);
 
   return (
     <Paper className="flex flex-col overflow-hidden">
       <div className="flex items-center justify-between gap-2 border-b border-slate-200 bg-slate-50 px-4 py-2">
         <Typography variant="body2" color="text.secondary" noWrap sx={{ fontWeight: 600 }}>
-          {heading || 'Completed match'}
+          {r.heading || 'Completed match'}
         </Typography>
         <Typography variant="body2" color="text.secondary" noWrap className="shrink-0" sx={{ fontWeight: 600 }}>
           {teamLabel(winner)} vs {teamLabel(loser)}
@@ -128,11 +127,21 @@ export function MatchCard({ match: m, teamsById, onSelectTeam, compact }: CardPr
         style={{ background: colors.winSoft, borderColor: colors.border }}
       >
         <Typography variant="body2">
-          {teamLabel(loser)} lost <strong className="tabular-nums">{m.ballsLost}</strong>{' '}
-          {m.ballsLost === 1 ? 'ball' : 'balls'}
+          {r.racks && (
+            <>
+              Racks <strong className="tabular-nums">{r.racks}</strong> ·{' '}
+            </>
+          )}
+          {r.ballsLost !== null ? (
+            <>
+              {teamLabel(loser)} lost <strong className="tabular-nums">{r.ballsLost}</strong> {r.ballsLost === 1 ? 'ball' : 'balls'}
+            </>
+          ) : (
+            `${teamLabel(loser)} lost`
+          )}
         </Typography>
         <Typography variant="body2" sx={{ fontWeight: 700, color: colors.win }} className="tabular-nums">
-          +{m.points} {m.points === 1 ? 'pt' : 'pts'} to {teamLabel(winner)}
+          +{r.points} {r.points === 1 ? 'pt' : 'pts'} to {teamLabel(winner)}
         </Typography>
       </div>
     </Paper>

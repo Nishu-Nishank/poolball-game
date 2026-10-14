@@ -20,19 +20,24 @@ export function buildStandings(teams: Team[], evaluated: EvaluatedMatch[], extra
   );
 
   const awards = [...calculatePoints(evaluated), ...extraAwards].sort((a, b) => a.order - b.order);
+  // Each side is credited independently, so a subset of teams (a group table) still gets its
+  // cross-group knockout results.
   for (const award of awards) {
     const winner = byId.get(award.winnerId);
     const loser = byId.get(award.loserId);
-    if (!winner || !loser) continue;
-    winner.played += 1;
-    winner.won += 1;
-    winner.points += award.points;
-    winner.breakdown.push(award);
-    winner.form.push('W');
-    loser.played += 1;
-    loser.lost += 1;
-    loser.ballsLost += award.ballsLost;
-    loser.form.push('L');
+    if (winner) {
+      winner.played += 1;
+      winner.won += 1;
+      winner.points += award.points;
+      winner.breakdown.push(award);
+      winner.form.push('W');
+    }
+    if (loser) {
+      loser.played += 1;
+      loser.lost += 1;
+      loser.ballsLost += award.ballsLost;
+      loser.form.push('L');
+    }
   }
 
   const ordered = [...byId.values()].sort(compareOfficial);

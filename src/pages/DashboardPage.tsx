@@ -108,6 +108,7 @@ export default function DashboardPage() {
                       <Leaderboard standings={snapshot.standings} onSelectTeam={openTeam} />
                       <MatchResults
                         matches={snapshot.matches}
+                        knockout={snapshot.data.knockout}
                         teamsById={teamsById}
                         onSelectTeam={openTeam}
                         limit={4}
@@ -130,10 +131,10 @@ export default function DashboardPage() {
               </>
             )}
             {view === 'groups' && (
-              <GroupStandings teams={snapshot.data.teams} matches={snapshot.matches} onSelectTeam={openTeam} />
+              <GroupStandings teams={snapshot.data.teams} matches={snapshot.matches} knockout={snapshot.data.knockout} onSelectTeam={openTeam} />
             )}
             {view === 'results' && (
-              <MatchResults matches={snapshot.matches} teamsById={teamsById} onSelectTeam={openTeam} />
+              <MatchResults matches={snapshot.matches} knockout={snapshot.data.knockout} teamsById={teamsById} onSelectTeam={openTeam} />
             )}
             {view === 'breakdown' && (
               <PointsBreakdown standings={snapshot.standings} teamsById={teamsById} onSelectTeam={openTeam} />
@@ -157,6 +158,7 @@ export default function DashboardPage() {
         open={detailsOpen}
         standing={selected}
         matches={snapshot?.matches ?? []}
+        knockout={snapshot?.data.knockout ?? []}
         teamsById={teamsById}
         onClose={() => setDetailsOpen(false)}
       />

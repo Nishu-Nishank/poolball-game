@@ -1,29 +1,35 @@
 import { useMemo } from 'react';
 import { Typography } from '@mui/material';
-import type { EvaluatedMatch, Team } from '../../types/tournament';
+import type { EvaluatedMatch, KnockoutMatch, Team } from '../../types/tournament';
 import { buildStandings } from '../../utils/leaderboard';
+import { knockoutAwards } from '../../utils/knockout';
 import { Leaderboard } from '../Leaderboard/Leaderboard';
 
 interface Props {
   teams: Team[];
   matches: EvaluatedMatch[];
+  knockout?: KnockoutMatch[];
   onSelectTeam: (teamId: string) => void;
 }
 
-/** One cricket-style table per group, ranked within the group by the same rules as the overall table. */
-export function GroupStandings({ teams, matches, onSelectTeam }: Props) {
+/**
+ * One cricket-style table per group. Each team's figures are the same as in the overall table
+ * (group matches plus its knockout results), ranked within the group.
+ */
+export function GroupStandings({ teams, matches, knockout = [], onSelectTeam }: Props) {
   const groups = useMemo(() => {
     const names = [...new Set(teams.map((t) => t.group).filter((g): g is string => !!g))];
     names.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const awards = knockoutAwards(knockout);
     return names.map((group) => ({
       group,
-      // Only matches between teams of this group count here, as buildStandings ignores outsiders.
       standings: buildStandings(
         teams.filter((t) => t.group === group),
         matches,
+        awards,
       ),
     }));
-  }, [teams, matches]);
+  }, [teams, matches, knockout]);
 
   return (
     <section aria-label="Group standings" className="flex flex-col gap-4">
@@ -33,7 +39,8 @@ export function GroupStandings({ teams, matches, onSelectTeam }: Props) {
         ))}
       </div>
       <Typography variant="caption" color="text.secondary">
-        Within each group, teams are ranked by points, then matches won, then fewest balls lost, then team number.
+        Within each group, teams are ranked by points, then matches won, then fewest balls lost, then team number. Figures
+        include each team's knockout matches, as in the overall table.
       </Typography>
     </section>
   );
