@@ -82,8 +82,11 @@ export function parseSheets(sheets: SheetGrid[], fileName: string): TournamentDa
 
   const matchTable = findTable(sheets, MATCH_FIELDS, isMatchHeader);
   if (!matchTable) {
+    const onlyFinals = findTable(sheets, KNOCKOUT_FIELDS, isKnockoutHeader) !== null;
     throw new WorkbookStructureError(
-      'Could not find a match results sheet. Expected a header row with two team columns, a winner or result column and a balls-lost column.',
+      onlyFinals
+        ? 'Only the finals bracket was found. The finals sheet cannot be uploaded on its own — select the group results file together with it (choose both files in the same dialog).'
+        : 'Could not find a match results sheet. Expected a header row with two team columns, a winner or result column and a balls-lost column.',
       describeSheets(sheets),
     );
   }
