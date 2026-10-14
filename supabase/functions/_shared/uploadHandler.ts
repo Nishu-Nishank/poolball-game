@@ -9,8 +9,18 @@
  * "preview" has no side effects. "publish" records the upload, stores the original file privately
  * and, only if validation passes, publishes the dataset in one database transaction.
  */
-import { checkUploadFile, DEFAULT_MAX_UPLOAD_BYTES, validateImport, type ImportIssue, type ImportSummary } from './tournament/services/importValidation.ts';
-import { encodeDataset } from './tournament/services/datasetCodec.ts';
+import {
+  checkUploadFile,
+  DEFAULT_MAX_UPLOAD_BYTES,
+  failedValidation,
+  validateData,
+  validateImport,
+  type ImportIssue,
+  type ImportSummary,
+  type ImportValidation,
+} from './tournament/services/importValidation.ts';
+import { mergeIntoDataset, SCOPE_LABELS, scopeFromFileName, type UploadScope } from './tournament/services/partialUpdate.ts';
+import { decodeDataset, encodeDataset } from './tournament/services/datasetCodec.ts';
 import type { EvaluatedMatch, FileFormat, KnockoutMatch, Team, WorkbookFile } from './tournament/types/tournament.ts';
 
 export type Role = 'admin' | 'superadmin';
@@ -48,6 +58,8 @@ export interface UploadDeps {
   /** public.delete_upload — authorizes and deletes the rows; returns the storage path of the file. */
   deleteUpload(uploadId: string, actorId: string): Promise<string | null>;
   removeStored(path: string): Promise<void>;
+  /** The live dataset as stored (jsonb), or null before the first publication. */
+  getPublishedDataset(): Promise<unknown | null>;
 }
 
 export interface UploadConfig {
@@ -134,13 +146,33 @@ export async function handleUploadRequest(req: Request, deps: UploadDeps, config
   const file = { name: files.map((f) => f.name).join(' + '), size: stored.reduce((n, f) => n + f.bytes.length, 0) };
   const check = { format: stored[0].format };
 
-  const validation = validateImport(workbookFiles);
+  // Partial update when every file names its stage; otherwise a full replacement.
+  const scopes = workbookFiles.map((f) => scopeFromFileName(f.fileName));
+  const partial = scopes.every((s): s is UploadScope => s !== null);
+  let validation: ImportValidation;
+  let updated: UploadScope[] = [];
+  if (partial) {
+    let current: ReturnType<typeof decodeDataset> | null;
+    try {
+      const raw = await deps.getPublishedDataset();
+      current = raw ? decodeDataset(raw) : null;
+    } catch {
+      return json(500, { error: 'The live dataset could not be read, so the update was not applied.' });
+    }
+    const merged = mergeIntoDataset(current, workbookFiles.map((f, i) => ({ file: f, scope: scopes[i] as UploadScope })));
+    updated = merged.updated;
+    validation = merged.data ? validateData(merged.data, merged.errors) : failedValidation(merged.errors);
+  } else {
+    validation = validateImport(workbookFiles);
+  }
   const report = {
     ok: validation.ok,
     summary: validation.summary,
     errors: validation.errors.slice(0, MAX_LISTED_ISSUES),
     warnings: validation.warnings.slice(0, MAX_LISTED_ISSUES),
     errorCount: validation.errors.length,
+    partial,
+    updated: updated.map((s) => SCOPE_LABELS[s]),
   };
 
   if (mode === 'preview') {
@@ -189,7 +221,8 @@ export async function handleUploadRequest(req: Request, deps: UploadDeps, config
       return json(422, { mode, uploadId, ...report });
     }
 
-    const publishedAt = await deps.publish(uploadId, encodeDataset(validation.data), validation.summary, user.id);
+    const summary = { ...validation.summary, partial, updated: report.updated };
+    const publishedAt = await deps.publish(uploadId, encodeDataset(validation.data), summary, user.id);
     return json(200, { mode, uploadId, publishedAt, ...report });
   } catch (e) {
     // The active dataset is untouched: publication is a single transaction that either fully

@@ -10,6 +10,7 @@ export const SHARED_FILES = [
   'services/workbookMapping.ts',
   'services/excelParser.ts',
   'services/importValidation.ts',
+  'services/partialUpdate.ts',
   'services/datasetCodec.ts',
   'utils/pointsCalculator.ts',
 ];

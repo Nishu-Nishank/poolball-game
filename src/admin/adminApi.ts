@@ -115,6 +115,10 @@ export interface UploadResponse {
   teams?: PreviewTeam[];
   matches?: PreviewMatch[];
   knockout?: PreviewKnockout[];
+  /** True when the file names selected a stage and only that stage is replaced. */
+  partial?: boolean;
+  /** Stages replaced by this upload (labels), e.g. ["Quarter finals"]. */
+  updated?: string[];
   uploadId?: string;
   publishedAt?: string;
 }

@@ -76,24 +76,35 @@ export function checkUploadFile(fileName: string, bytes: Uint8Array, maxBytes = 
  * results CSV plus the finals CSV). Never throws for bad content — problems become errors.
  */
 export function validateImport(files: WorkbookFile | WorkbookFile[]): ImportValidation {
-  const empty: ImportSummary = {
-    teams: 0, matches: 0, completed: 0, pending: 0, groups: [], knockout: 0, matchSheet: null, teamSheet: null, knockoutSheet: null,
-  };
-  const fail = (errors: ImportIssue[]): ImportValidation => ({ ok: false, errors, warnings: [], summary: empty, data: null, matches: [] });
-
   let data: TournamentData;
   try {
     data = parseWorkbookFiles(Array.isArray(files) ? files : [files]);
   } catch (e) {
-    if (e instanceof WorkbookStructureError) {
-      const found = e.sheets.map((s) => `${s.name}: ${s.headers.join(' | ') || '(empty)'}`).join('; ');
-      return fail([{ message: `${e.message} Found — ${found || 'no sheets'}.` }]);
-    }
-    return fail([{ message: 'The file could not be read as a spreadsheet. Check that it is not corrupted or password-protected.' }]);
+    return failedValidation([{ message: describeParseError(e) }]);
   }
+  return validateData(data);
+}
 
+export const EMPTY_SUMMARY: ImportSummary = {
+  teams: 0, matches: 0, completed: 0, pending: 0, groups: [], knockout: 0, matchSheet: null, teamSheet: null, knockoutSheet: null,
+};
+
+export const failedValidation = (errors: ImportIssue[]): ImportValidation => ({
+  ok: false, errors, warnings: [], summary: EMPTY_SUMMARY, data: null, matches: [],
+});
+
+export function describeParseError(e: unknown): string {
+  if (e instanceof WorkbookStructureError) {
+    const found = e.sheets.map((s) => `${s.name}: ${s.headers.join(' | ') || '(empty)'}`).join('; ');
+    return `${e.message} Found — ${found || 'no sheets'}.`;
+  }
+  return 'The file could not be read as a spreadsheet. Check that it is not corrupted or password-protected.';
+}
+
+/** Validates already-parsed (possibly merged) tournament data with the same rules as an upload. */
+export function validateData(data: TournamentData, extraErrors: ImportIssue[] = []): ImportValidation {
   const matches = evaluateMatches(data.matches);
-  const errors: ImportIssue[] = [];
+  const errors: ImportIssue[] = [...extraErrors];
 
   if (data.teams.length === 0) errors.push({ message: 'No teams were found in the file.' });
   if (data.matches.length === 0) errors.push({ message: 'No matches were found in the file.' });

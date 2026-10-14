@@ -21,6 +21,22 @@ export interface SheetGrid {
 
 /** Parses one workbook, or several files read together (e.g. teams.csv + matches.csv). */
 export function parseWorkbookFiles(files: WorkbookFile[]): TournamentData {
+  return parseSheets(filesToSheets(files), files.map((f) => f.fileName).join(', '));
+}
+
+/**
+ * Reads only the finals bracket from the given files, resolving teams against an existing team
+ * list (used for partial updates where the group data comes from the live dataset).
+ * Winners are not advanced here; call `advanceWinners` on the merged bracket.
+ */
+export function parseKnockoutFiles(files: WorkbookFile[], teams: Team[]): { knockout: KnockoutMatch[]; sheetName: string | null } {
+  const sheets = filesToSheets(files);
+  const table = findTable(sheets, KNOCKOUT_FIELDS, isKnockoutHeader);
+  if (!table) return { knockout: [], sheetName: null };
+  return { knockout: readKnockout(table, teams), sheetName: table.sheet.name };
+}
+
+function filesToSheets(files: WorkbookFile[]): SheetGrid[] {
   const sheets: SheetGrid[] = [];
   const taken = new Set<string>();
   for (const file of files) {
@@ -32,7 +48,7 @@ export function parseWorkbookFiles(files: WorkbookFile[]): TournamentData {
       sheets.push({ ...sheet, name });
     }
   }
-  return parseSheets(sheets, files.map((f) => f.fileName).join(', '));
+  return sheets;
 }
 
 export function parseWorkbook(data: ArrayBuffer, fileName: string): TournamentData {
@@ -102,7 +118,7 @@ export function parseSheets(sheets: SheetGrid[], fileName: string): TournamentDa
   }
 
   const knockoutTable = findTable(sheets, KNOCKOUT_FIELDS, isKnockoutHeader);
-  const knockout = knockoutTable ? readKnockout(knockoutTable, teams) : [];
+  const knockout = knockoutTable ? advanceWinners(readKnockout(knockoutTable, teams)) : [];
 
   return {
     teams,
@@ -193,11 +209,13 @@ function isKnockoutHeader(c: ColumnMap<typeof KNOCKOUT_FIELDS>): boolean {
 // ---------------------------------------------------------------------------------------------
 // Knockout (finals bracket)
 
+/** Match ids are short tokens such as "QF1", "SF 2", "Final"; sentences (notes below the table) are not rows. */
 function knockoutRound(id: string): KnockoutRound | null {
   const v = id.toLowerCase().replace(/[^a-z0-9]/g, '');
-  if (/^(qf|quarter)/.test(v)) return 'QF';
-  if (/^(sf|semi)/.test(v)) return 'SF';
-  if (/^(f|final|gf|grandfinal)/.test(v)) return 'F';
+  if (v.length > 16) return null;
+  if (/^(qf|quarterfinals?|quarters?)\d*$/.test(v)) return 'QF';
+  if (/^(sf|semifinals?|semis?)\d*$/.test(v)) return 'SF';
+  if (/^(f|finals?|gf|grandfinals?)\d*$/.test(v)) return 'F';
   return null;
 }
 
@@ -283,27 +301,40 @@ function readKnockout(table: Table<typeof KNOCKOUT_FIELDS>, teams: Team[]): Knoc
       order: out.length,
     });
   }
-  return advanceWinners(out);
+  return out;
 }
 
 /**
  * Fills empty later-round slots from earlier winners by the usual bracket order
  * (SF1 = QF1 vs QF2, SF2 = QF3 vs QF4, Final = SF1 vs SF2), so the dashboard shows who
- * progressed even before the organisers type the names into the finals sheet.
+ * progressed even before the organisers type the names into the finals sheet. Slots that were
+ * filled this way (raw text "Winner QF1") are recomputed every time, so a corrected earlier
+ * result flows through; slots typed into the sheet are left alone.
  */
-function advanceWinners(matches: KnockoutMatch[]): KnockoutMatch[] {
-  const ordered = (round: KnockoutRound) => matches.filter((m) => m.round === round);
+export function advanceWinners(matches: KnockoutMatch[]): KnockoutMatch[] {
+  const ordered = (round: KnockoutRound) => matches.filter((m) => m.round === round).sort((a, b) => a.order - b.order);
+  const auto = (raw: string) => !raw || /^winner /i.test(raw);
   const feed = (round: KnockoutRound, from: KnockoutRound) => {
     const sources = ordered(from);
     ordered(round).forEach((m, i) => {
       const a = sources[i * 2];
       const b = sources[i * 2 + 1];
-      if (!a || !b) return;
-      if (!m.teamA && a.winner) m.teamA = a.winner;
-      if (!m.teamB && b.winner) m.teamB = b.winner;
-      if (!m.teamARaw) m.teamARaw = `Winner ${a.id}`;
-      if (!m.teamBRaw) m.teamBRaw = `Winner ${b.id}`;
-      if (m.state === 'awaiting' && m.teamA && m.teamB) m.state = 'pending';
+      if (!a || !b || m.state === 'played') return;
+      const slots: ['teamA' | 'teamB', 'teamARaw' | 'teamBRaw', KnockoutMatch][] = [
+        ['teamA', 'teamARaw', a],
+        ['teamB', 'teamBRaw', b],
+      ];
+      for (const [team, raw, source] of slots) {
+        if (auto(m[raw])) {
+          m[raw] = `Winner ${source.id}`;
+          m[team] = source.winner;
+        } else if (source.winner && m[team] && m[team] !== source.winner) {
+          // A team typed into the sheet that did not actually win the feeding match.
+          m.reasons.push(`"${m[raw]}" is listed here, but ${source.id} was won by a different team.`);
+          m.state = 'flagged';
+        }
+      }
+      if (m.state !== 'flagged') m.state = m.teamA && m.teamB ? 'pending' : 'awaiting';
     });
   };
   feed('SF', 'QF');

@@ -220,10 +220,25 @@ export default function AdminUploadPage() {
         <Typography id="upload-title" variant="h2" component="h2" className="!mb-1">
           Upload results
         </Typography>
+        <Typography variant="body2" color="text.secondary" className="!mb-1">
+          Upload only the stage that changed — the file name says which part of the live results it replaces; everything
+          else is kept:
+        </Typography>
+        <ul className="mt-0 mb-3 list-disc pl-5 text-sm text-slate-600">
+          <li>
+            name contains <strong>group</strong> → teams and group-stage results (e.g. <code>4IBC_group_stage.csv</code>)
+          </li>
+          <li>
+            <strong>qf</strong> or <strong>quarter</strong> → quarter finals · <strong>sf</strong> or <strong>semi</strong> → semi
+            finals · <strong>final</strong> → the Final (and any other rounds in the file)
+          </li>
+          <li>
+            a name without a keyword (or the full <code>.xlsx</code> workbook) replaces everything — select the group file
+            and the finals file together in that case
+          </li>
+        </ul>
         <Typography variant="body2" color="text.secondary" className="!mb-4">
-          Upload the complete tournament workbook (.xlsx/.xls with the “Group match register” and “Finals” sheets), or
-          the sheets exported as CSV — select the group results CSV and the finals CSV together. Up to {MAX_UPLOAD_MB} MB in
-          total. Each upload replaces the published results as a whole. It is checked first and only published after you
+          .xlsx, .xls or .csv, up to {MAX_UPLOAD_MB} MB in total. Every upload is checked first and only published after you
           confirm; if anything is wrong, the current results stay live.
         </Typography>
 
@@ -380,7 +395,10 @@ export default function AdminUploadPage() {
         <DialogTitle>Publish these results?</DialogTitle>
         <DialogContent>
           <Typography>
-            <strong>{file?.name}</strong> will replace the results currently shown on the public dashboard
+            <strong>{file?.name}</strong>{' '}
+            {preview?.partial
+              ? `will replace ${preview.updated?.join(', ') || 'the named stage'} in the live results; everything else stays as it is`
+              : 'will replace the results currently shown on the public dashboard'}
             {preview?.summary && ` (${plural(preview.summary.teams, 'team')}, ${plural(preview.summary.completed, 'completed match', 'completed matches')})`}.
           </Typography>
         </DialogContent>
@@ -488,6 +506,12 @@ function PreviewPanel({ preview }: { preview: UploadResponse }) {
         </div>
       )}
 
+      {preview.partial && (
+        <Alert severity="info">
+          <strong>Partial update:</strong> this upload replaces {preview.updated?.join(', ') || 'the named stage'}; teams,
+          results and rounds not in these files are kept from the live dataset. The preview shows the combined result.
+        </Alert>
+      )}
       {preview.ok ? (
         <Alert severity="success">The file passed validation. Review the preview, then publish.</Alert>
       ) : (

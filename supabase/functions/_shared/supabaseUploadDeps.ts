@@ -69,6 +69,12 @@ export function supabaseUploadDeps(admin: SupabaseClient): UploadDeps {
       return (data as string | null) ?? null;
     },
 
+    async getPublishedDataset() {
+      const { data, error } = await admin.rpc('get_published_dataset');
+      fail('read published dataset', error);
+      return (data as { data: unknown }[] | null)?.[0]?.data ?? null;
+    },
+
     async removeStored(path) {
       const bucket = admin.storage.from(UPLOAD_BUCKET);
       // A trailing slash means "the upload's folder": remove every file in it.

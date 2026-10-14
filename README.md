@@ -182,10 +182,19 @@ Duplicates and invalid addresses are rejected by the database. All changes are w
 
 `/admin` shows what is live, the last successful upload and the latest upload status. Workflow:
 
-1. Choose the tournament workbook (`.xlsx`/`.xls` containing the group register and the finals
-   sheet), or the sheets exported as `.csv` — select the group results CSV **and** the finals CSV
-   together (up to `VITE_MAX_UPLOAD_MB` in total). Without a finals sheet the knockout tabs stay
-   empty; the group standings are unaffected.
+1. Choose the file(s) for the stage that changed. **The file name decides what is replaced**; the
+   rest of the live dataset is kept (`src/services/partialUpdate.ts`):
+
+   | File name contains | Replaces |
+   | --- | --- |
+   | `group` | teams and group-stage results |
+   | `qf` or `quarter` | quarter-final rows |
+   | `sf` or `semi` | semi-final rows |
+   | `final` | the Final, plus any other knockout rounds in the file (so a full "(Finals)" export updates the whole bracket) |
+   | no keyword / full `.xlsx` workbook | everything (full replacement — select the group file and the finals file together) |
+
+   Up to `VITE_MAX_UPLOAD_MB` in total. A knockout-only file is refused until group results have
+   been published once. Without a finals sheet the knockout tabs stay empty.
 2. The server checks extension, size and real content, parses the file and validates it. A preview
    shows summary chips, all errors/warnings and the parsed matches and teams. Nothing is stored yet.
 3. **Publish results** (enabled only when validation passed) → confirmation dialog → the Edge
