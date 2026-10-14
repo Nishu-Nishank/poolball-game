@@ -66,7 +66,8 @@ export function KnockoutStage({ round, matches, teamsById, onSelectTeam, noKnock
         ))}
       </div>
       <Typography variant="caption" color="text.secondary">
-        Knockout matches are a race to the stated number of racks and do not count towards the group points table.
+        Knockout matches are a race to the stated number of racks. The winner receives points equal to the balls the loser
+        had left, added to their group-stage points in the overall leaderboard. Group tables show group matches only.
       </Typography>
     </section>
   );
@@ -84,9 +85,22 @@ function KnockoutCard({ match: m, teamsById, onSelectTeam }: { match: KnockoutMa
         <Chip size="small" label={state.label} color={state.color} variant={m.state === 'played' ? 'filled' : 'outlined'} />
       </div>
       <div className="flex flex-col divide-y divide-slate-100">
-        <Side teamId={m.teamA} raw={m.teamARaw} racks={m.racksA} winner={m.winner} teamsById={teamsById} onSelectTeam={onSelectTeam} fallback="Winner of earlier round" />
-        <Side teamId={m.teamB} raw={m.teamBRaw} racks={m.racksB} winner={m.winner} teamsById={teamsById} onSelectTeam={onSelectTeam} fallback="Winner of earlier round" />
+        <Side teamId={m.teamA} raw={m.teamARaw} racks={m.racksA} winner={m.winner} teamsById={teamsById} onSelectTeam={onSelectTeam} fallback="To be decided" />
+        <Side teamId={m.teamB} raw={m.teamBRaw} racks={m.racksB} winner={m.winner} teamsById={teamsById} onSelectTeam={onSelectTeam} fallback="To be decided" />
       </div>
+      {m.state === 'played' && m.winner && m.ballsLost !== null && (
+        <div
+          className="flex flex-wrap items-center justify-between gap-2 border-t px-4 py-2.5"
+          style={{ background: colors.winSoft, borderColor: colors.border }}
+        >
+          <Typography variant="body2">
+            {loserLabel(m, teamsById)} lost <strong className="tabular-nums">{m.ballsLost}</strong> {m.ballsLost === 1 ? 'ball' : 'balls'}
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 700, color: colors.win }} className="tabular-nums">
+            +{m.points} {m.points === 1 ? 'pt' : 'pts'} to {teamsById.get(m.winner) ? teamLabel(teamsById.get(m.winner)!) : 'winner'}
+          </Typography>
+        </div>
+      )}
       {m.reasons.length > 0 && (
         <Typography variant="caption" color="error" className="px-4 py-2">
           {m.reasons.join(' ')}
@@ -94,6 +108,12 @@ function KnockoutCard({ match: m, teamsById, onSelectTeam }: { match: KnockoutMa
       )}
     </Paper>
   );
+}
+
+function loserLabel(m: KnockoutMatch, teamsById: Map<string, Team>): string {
+  const loserId = m.winner === m.teamA ? m.teamB : m.teamA;
+  const team = loserId ? teamsById.get(loserId) : undefined;
+  return team ? teamLabel(team) : 'The loser';
 }
 
 function Side(props: {

@@ -31,7 +31,9 @@ export function decodeDataset(raw: unknown): TournamentData {
   return {
     ...(data as TournamentData),
     matches: data.matches.map((m: MatchRecord) => ({ ...m, date: m.date ? new Date(m.date) : null })),
-    knockout: Array.isArray(data.knockout) ? data.knockout : [],
+    knockout: Array.isArray(data.knockout)
+      ? data.knockout.map((k) => ({ ...k, ballsLost: k.ballsLost ?? null, points: k.points ?? 0 }))
+      : [],
     meta: { ...meta, knockoutSheet: meta.knockoutSheet ?? null } as TournamentData['meta'],
   };
 }

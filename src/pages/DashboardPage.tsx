@@ -103,7 +103,7 @@ export default function DashboardPage() {
                 </Paper>
                 {stage === 'group' ? (
                   <>
-                    <SummaryCards standings={snapshot.standings} matches={snapshot.matches} />
+                    <SummaryCards standings={snapshot.standings} matches={snapshot.matches} knockout={snapshot.data.knockout} />
                     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
                       <Leaderboard standings={snapshot.standings} onSelectTeam={openTeam} />
                       <MatchResults

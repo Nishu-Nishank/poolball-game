@@ -1,4 +1,4 @@
-import type { DataIssue, EvaluatedMatch, Team, TeamStanding } from '../types/tournament';
+import type { DataIssue, EvaluatedMatch, PointAward, Team, TeamStanding } from '../types/tournament';
 import { calculatePoints } from './pointsCalculator';
 
 export type SortKey = 'points' | 'won' | 'ballsLost';
@@ -11,7 +11,7 @@ export type SortDirection = 'asc' | 'desc';
  * Official order (fallback — the workbook does not define a tie-break rule):
  *   1. total points (desc)  2. matches won (desc)  3. balls lost (asc)  4. team number (asc)
  */
-export function buildStandings(teams: Team[], evaluated: EvaluatedMatch[]): TeamStanding[] {
+export function buildStandings(teams: Team[], evaluated: EvaluatedMatch[], extraAwards: PointAward[] = []): TeamStanding[] {
   const byId = new Map<string, TeamStanding>(
     teams.map((team) => [
       team.id,
@@ -19,7 +19,7 @@ export function buildStandings(teams: Team[], evaluated: EvaluatedMatch[]): Team
     ]),
   );
 
-  const awards = calculatePoints(evaluated).sort((a, b) => a.order - b.order);
+  const awards = [...calculatePoints(evaluated), ...extraAwards].sort((a, b) => a.order - b.order);
   for (const award of awards) {
     const winner = byId.get(award.winnerId);
     const loser = byId.get(award.loserId);

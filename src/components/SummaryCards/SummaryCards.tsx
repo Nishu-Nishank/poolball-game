@@ -4,19 +4,22 @@ import GroupsIcon from '@mui/icons-material/Groups';
 import SportsScoreIcon from '@mui/icons-material/SportsScore';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlineOutlined';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
-import type { EvaluatedMatch, TeamStanding } from '../../types/tournament';
+import type { EvaluatedMatch, KnockoutMatch, TeamStanding } from '../../types/tournament';
 import { teamLabel } from '../../utils/leaderboard';
 import { colors } from '../../theme';
 
 interface Props {
   standings: TeamStanding[];
   matches: EvaluatedMatch[];
+  knockout?: KnockoutMatch[];
 }
 
-export function SummaryCards({ standings, matches }: Props) {
-  const counted = matches.filter((m) => m.state === 'counted');
-  const recorded = matches.filter((m) => m.state !== 'duplicate').length;
-  const totalPoints = counted.reduce((sum, m) => sum + m.points, 0);
+export function SummaryCards({ standings, matches, knockout = [] }: Props) {
+  const playedKnockout = knockout.filter((m) => m.state === 'played').length;
+  const counted = matches.filter((m) => m.state === 'counted').length + playedKnockout;
+  const recorded = matches.filter((m) => m.state !== 'duplicate').length + knockout.length;
+  // Standings already combine group and knockout points.
+  const totalPoints = standings.reduce((sum, s) => sum + s.points, 0);
   const leader = standings[0];
   const hasLeader = leader && leader.points > 0;
   const tiedOnPoints = hasLeader ? standings.filter((s) => s.points === leader.points).length - 1 : 0;
@@ -27,8 +30,8 @@ export function SummaryCards({ standings, matches }: Props) {
       <StatCard
         icon={<SportsScoreIcon />}
         label="Completed matches"
-        value={counted.length}
-        note={`of ${recorded} recorded`}
+        value={counted}
+        note={`of ${recorded} recorded${playedKnockout > 0 ? ` · incl. ${playedKnockout} knockout` : ''}`}
       />
       <StatCard icon={<AddCircleOutlineIcon />} label="Points awarded" value={totalPoints} accent />
       <StatCard

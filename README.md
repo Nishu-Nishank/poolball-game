@@ -277,9 +277,12 @@ After deployment:
 
 **Finals sheet** ("Finals bracket"): the table below the drawn bracket, with columns `Match`
 (`QF1`…`QF4`, `SF1`, `SF2`, `Final`), `Team A` / `A ID`, `Team B` / `B ID`, `Racks A`, `Racks B`,
-`Status`, `Winner ID` and `Target` (racks needed to win). Rows are shown on the dashboard under
-*Standings → Quarter finals / Semi finals / Finals*; a winner is taken from `Winner ID` or, when that
-is empty, from the side that reached the target. Knockout results never affect the points table.
+`Status`, `Winner ID` and `Target` (racks needed to win), plus an optional `Loser balls` column.
+Rows are shown on the dashboard under *Standings → Quarter finals / Semi finals / Finals*; a winner
+is taken from `Winner ID` or, when that is empty, from the side that reached the target. When
+`Loser balls` is filled in, the winner receives that many points on top of their group-stage points
+in the overall leaderboard (group tables stay group-only). Empty later-round slots are filled from
+earlier winners by bracket order (SF1 = QF1 vs QF2, SF2 = QF3 vs QF4, Final = SF1 vs SF2).
 
 Title rows above the table and instruction rows below it are skipped. The parser
 (`src/services/excelParser.ts`) finds tables by header names, normalised (lower-case, `#` → `no`,

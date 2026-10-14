@@ -1,6 +1,7 @@
 import type { DataIssue, EvaluatedMatch, TeamStanding, TournamentData } from '../types/tournament';
 import { evaluateMatches } from '../utils/pointsCalculator';
 import { buildStandings, crossCheckReportedPoints } from '../utils/leaderboard';
+import { knockoutAwards } from '../utils/knockout';
 import type { WorkbookSource } from './workbookSource';
 
 /** Everything the dashboard renders, derived from one version of the workbook. */
@@ -29,7 +30,8 @@ export async function loadTournament(
 
 export function buildSnapshot(data: TournamentData, version: string, lastModified: Date | null = null): TournamentSnapshot {
   const matches = evaluateMatches(data.matches);
-  const standings = buildStandings(data.teams, matches);
+  // Overall leaderboard = group points + knockout points; group tables use group matches only.
+  const standings = buildStandings(data.teams, matches, knockoutAwards(data.knockout));
   return {
     data,
     matches,

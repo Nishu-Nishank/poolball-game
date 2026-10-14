@@ -234,6 +234,9 @@ function readKnockout(table: Table<typeof KNOCKOUT_FIELDS>, teams: Team[]): Knoc
     const racksA = toWholeNumber(c.racksA === undefined ? null : cells[c.racksA]);
     const racksB = toWholeNumber(c.racksB === undefined ? null : cells[c.racksB]);
     const target = toWholeNumber(c.target === undefined ? null : cells[c.target]);
+    const ballsLostRaw = text(cells, c.ballsLost);
+    const ballsLost = toWholeNumber(c.ballsLost === undefined ? null : cells[c.ballsLost]);
+    if (ballsLostRaw && ballsLost === null) reasons.push(`Loser balls "${ballsLostRaw}" is not a valid whole number.`);
     const statusRaw = text(cells, c.status);
     const completed = c.status !== undefined && statusRaw ? interpretStatus(statusRaw) : null;
 
@@ -270,6 +273,8 @@ function readKnockout(table: Table<typeof KNOCKOUT_FIELDS>, teams: Team[]): Knoc
       racksA,
       racksB,
       target,
+      ballsLost,
+      points: state === 'played' && ballsLost !== null ? ballsLost : 0,
       winner,
       statusRaw,
       state,
@@ -278,7 +283,32 @@ function readKnockout(table: Table<typeof KNOCKOUT_FIELDS>, teams: Team[]): Knoc
       order: out.length,
     });
   }
-  return out;
+  return advanceWinners(out);
+}
+
+/**
+ * Fills empty later-round slots from earlier winners by the usual bracket order
+ * (SF1 = QF1 vs QF2, SF2 = QF3 vs QF4, Final = SF1 vs SF2), so the dashboard shows who
+ * progressed even before the organisers type the names into the finals sheet.
+ */
+function advanceWinners(matches: KnockoutMatch[]): KnockoutMatch[] {
+  const ordered = (round: KnockoutRound) => matches.filter((m) => m.round === round);
+  const feed = (round: KnockoutRound, from: KnockoutRound) => {
+    const sources = ordered(from);
+    ordered(round).forEach((m, i) => {
+      const a = sources[i * 2];
+      const b = sources[i * 2 + 1];
+      if (!a || !b) return;
+      if (!m.teamA && a.winner) m.teamA = a.winner;
+      if (!m.teamB && b.winner) m.teamB = b.winner;
+      if (!m.teamARaw) m.teamARaw = `Winner ${a.id}`;
+      if (!m.teamBRaw) m.teamBRaw = `Winner ${b.id}`;
+      if (m.state === 'awaiting' && m.teamA && m.teamB) m.state = 'pending';
+    });
+  };
+  feed('SF', 'QF');
+  feed('F', 'SF');
+  return matches;
 }
 
 function describeSheets(sheets: SheetGrid[]) {

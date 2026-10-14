@@ -134,6 +134,10 @@ export interface KnockoutMatch {
   racksB: number | null;
   /** Racks needed to win the match, if the workbook states it. */
   target: number | null;
+  /** Balls the losing team had left, if the sheet records it; the winner receives that many points. */
+  ballsLost: number | null;
+  /** Points awarded to the winner (0 unless played with a recorded ball count). */
+  points: number;
   winner: string | null;
   statusRaw: string;
   state: 'played' | 'pending' | 'awaiting' | 'flagged';

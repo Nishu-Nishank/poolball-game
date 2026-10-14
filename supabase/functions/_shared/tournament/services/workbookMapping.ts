@@ -64,6 +64,8 @@ export const KNOCKOUT_FIELDS = {
   racksB: ['racksb', 'racks2', 'framesb', 'frames2', 'scoreb', 'score2'],
   /** Racks needed to win ("race to"). */
   target: ['target', 'raceto', 'firstto', 'racksto', 'racksneeded'],
+  /** Optional: balls the loser had left — awarded to the winner as points, like in the group stage. */
+  ballsLost: ['loserballs', 'ballslost', 'ballslostbyloser', 'loserballslost', 'ballsremaining', 'ballsleft'],
   status: ['status', 'matchstatus'],
   winner: ['winnerid', 'winnerteamid', 'winner', 'winningteam'],
 } as const;
