@@ -1,7 +1,8 @@
 import * as XLSX from 'xlsx';
-import type { DataIssue, MatchRecord, Player, SourceRef, Team, TournamentData } from '../types/tournament.ts';
+import type { DataIssue, KnockoutMatch, KnockoutRound, MatchRecord, Player, SourceRef, Team, TournamentData } from '../types/tournament.ts';
 import {
   HEADER_SCAN_ROWS,
+  KNOCKOUT_FIELDS,
   MATCH_FIELDS,
   MEMBER_COLUMN_PATTERN,
   TEAM_FIELDS,
@@ -97,15 +98,20 @@ export function parseSheets(sheets: SheetGrid[], fileName: string): TournamentDa
     issues.push({ severity: 'warning', message: 'No team member names were found in the workbook.' });
   }
 
+  const knockoutTable = findTable(sheets, KNOCKOUT_FIELDS, isKnockoutHeader);
+  const knockout = knockoutTable ? readKnockout(knockoutTable, teams) : [];
+
   return {
     teams,
     matches,
+    knockout,
     issues,
     meta: {
       fileName,
       sheetNames: sheets.map((s) => s.name),
       teamSheet: teamTable?.sheet.name ?? null,
       matchSheet: matchTable.sheet.name,
+      knockoutSheet: knockoutTable?.sheet.name ?? null,
       tournamentStatus: findTournamentStatus(sheets),
     },
   };
@@ -174,6 +180,102 @@ function isMatchHeader(c: ColumnMap<typeof MATCH_FIELDS>): boolean {
 function isTeamHeader(c: ColumnMap<typeof TEAM_FIELDS>, memberColumns: number[]): boolean {
   const hasIdentity = c.number !== undefined || c.name !== undefined;
   return hasIdentity && (c.members !== undefined || memberColumns.length > 0);
+}
+
+function isKnockoutHeader(c: ColumnMap<typeof KNOCKOUT_FIELDS>): boolean {
+  const hasTeams = (c.teamA !== undefined || c.teamADetails !== undefined) && (c.teamB !== undefined || c.teamBDetails !== undefined);
+  return c.id !== undefined && c.racksA !== undefined && c.racksB !== undefined && hasTeams;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Knockout (finals bracket)
+
+function knockoutRound(id: string): KnockoutRound | null {
+  const v = id.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (/^(qf|quarter)/.test(v)) return 'QF';
+  if (/^(sf|semi)/.test(v)) return 'SF';
+  if (/^(f|final|gf|grandfinal)/.test(v)) return 'F';
+  return null;
+}
+
+/**
+ * Reads the finals table. Rows whose id is not a recognisable round (instruction text below the
+ * table, blank rows) are skipped. Teams are matched by id first, then by the name in the team cell.
+ */
+function readKnockout(table: Table<typeof KNOCKOUT_FIELDS>, teams: Team[]): KnockoutMatch[] {
+  const { sheet, headerRow, columns: c } = table;
+  const text = (cells: unknown[], col: number | undefined) => (col === undefined ? '' : cellText(cells[col]));
+  const resolve = teamResolver(teams);
+  const out: KnockoutMatch[] = [];
+
+  for (const { cells, source } of dataRows(sheet, headerRow)) {
+    const id = text(cells, c.id);
+    const round = knockoutRound(id);
+    if (!round) continue;
+
+    const reasons: string[] = [];
+    const side = (idCol: number | undefined, detailCol: number | undefined) => {
+      const ref = text(cells, idCol);
+      const details = parseTeamDetails(text(cells, detailCol));
+      const raw = ref || details.name || '';
+      for (const candidate of [ref, details.name ?? '']) {
+        if (!candidate) continue;
+        const r = resolve(candidate);
+        if (r.id) return { id: r.id, raw };
+      }
+      if (raw) reasons.push(`"${raw}" does not match a known team.`);
+      return { id: null, raw };
+    };
+    const a = side(c.teamA, c.teamADetails);
+    const b = side(c.teamB, c.teamBDetails);
+    const racksA = toWholeNumber(c.racksA === undefined ? null : cells[c.racksA]);
+    const racksB = toWholeNumber(c.racksB === undefined ? null : cells[c.racksB]);
+    const target = toWholeNumber(c.target === undefined ? null : cells[c.target]);
+    const statusRaw = text(cells, c.status);
+    const completed = c.status !== undefined && statusRaw ? interpretStatus(statusRaw) : null;
+
+    let winner: string | null = null;
+    const winnerRaw = text(cells, c.winner);
+    if (winnerRaw) {
+      const r = resolve(winnerRaw);
+      if (!r.id) reasons.push(`Winner "${winnerRaw}" does not match a known team.`);
+      else if (r.id !== a.id && r.id !== b.id) reasons.push(`Winner "${winnerRaw}" is not one of the two teams.`);
+      else winner = r.id;
+    } else if (target !== null && racksA !== null && racksB !== null && (racksA >= target) !== (racksB >= target)) {
+      // No winner column value: a side that reached the target has won.
+      winner = racksA >= target ? a.id : b.id;
+    }
+
+    let state: KnockoutMatch['state'];
+    if (reasons.length > 0) state = 'flagged';
+    else if (winner && completed === false) {
+      reasons.push(`A winner is recorded but the status is "${statusRaw}".`);
+      state = 'flagged';
+    } else if (winner) state = 'played';
+    else if (completed === true) {
+      reasons.push('Match is marked complete but no winner is recorded.');
+      state = 'flagged';
+    } else state = a.id && b.id ? 'pending' : 'awaiting';
+
+    out.push({
+      id,
+      round,
+      teamA: a.id,
+      teamB: b.id,
+      teamARaw: a.raw,
+      teamBRaw: b.raw,
+      racksA,
+      racksB,
+      target,
+      winner,
+      statusRaw,
+      state,
+      reasons,
+      source,
+      order: out.length,
+    });
+  }
+  return out;
 }
 
 function describeSheets(sheets: SheetGrid[]) {

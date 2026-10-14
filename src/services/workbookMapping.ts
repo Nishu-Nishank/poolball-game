@@ -48,11 +48,30 @@ export const MATCH_FIELDS = {
   points: ['pointsawarded', 'winnerpoints', 'points', 'pts'],
 } as const;
 
+/**
+ * Finals bracket table ("Finals" sheet): one row per knockout match with rack scores.
+ * Detected by a match id column plus two rack-score columns; it has no balls-lost column, so it
+ * is never mistaken for the group match register.
+ */
+export const KNOCKOUT_FIELDS = {
+  id: ['match', 'matchid', 'matchno', 'fixture', 'fixtureid'],
+  teamA: ['aid', 'teamaid', 'team1id', 'teamano', 'team1no'],
+  teamB: ['bid', 'teambid', 'team2id', 'teambno', 'team2no'],
+  teamADetails: ['teama', 'team1', 'hometeam'],
+  teamBDetails: ['teamb', 'team2', 'awayteam'],
+  racksA: ['racksa', 'racks1', 'framesa', 'frames1', 'scorea', 'score1'],
+  racksB: ['racksb', 'racks2', 'framesb', 'frames2', 'scoreb', 'score2'],
+  /** Racks needed to win ("race to"). */
+  target: ['target', 'raceto', 'firstto', 'racksto', 'racksneeded'],
+  status: ['status', 'matchstatus'],
+  winner: ['winnerid', 'winnerteamid', 'winner', 'winningteam'],
+} as const;
+
 /** Cells whose normalized text equals one of these are treated as the tournament status label. */
 export const TOURNAMENT_STATUS_LABELS = ['tournamentstatus', 'championshipstatus', 'eventstatus'];
 
 const COMPLETE = /^(complete|completed|done|finished|played|final|confirmed|result|yes|y|true|1|✓|✔)$/;
-const INCOMPLETE = /^(toplay|yettoplay|notyetplayed|open|pending|scheduled|upcoming|notplayed|notstarted|tbd|tba|live|inprogress|ongoing|postponed|cancelled|canceled|no|n|false|0|)$/;
+const INCOMPLETE = /^(toplay|yettoplay|notyetplayed|open|awaiting|awaitingqualifiers|awaitingqualifier|pending|scheduled|upcoming|notplayed|notstarted|tbd|tba|live|inprogress|ongoing|postponed|cancelled|canceled|no|n|false|0|)$/;
 
 /** Maps a status cell to complete (true), incomplete (false) or unknown (null). */
 export function interpretStatus(raw: string): boolean | null {
@@ -62,8 +81,8 @@ export function interpretStatus(raw: string): boolean | null {
   return null;
 }
 
-/** Scan this many rows at the top of each sheet when looking for the header row. */
-export const HEADER_SCAN_ROWS = 25;
+/** Scan this many rows at the top of each sheet when looking for a header row (the finals sheet draws a bracket above its table). */
+export const HEADER_SCAN_ROWS = 80;
 
 export function normalizeHeader(value: unknown): string {
   return String(value ?? '')

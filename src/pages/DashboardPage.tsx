@@ -11,13 +11,18 @@ import { DataIssues } from '../components/DataIssues/DataIssues';
 import { GroupStandings } from '../components/GroupStandings/GroupStandings';
 import { LoadingState } from '../components/LoadingState/LoadingState';
 import { ErrorState } from '../components/ErrorState/ErrorState';
+import { KnockoutStage } from '../components/Knockout/KnockoutStage';
+import { KNOCKOUT_ROUNDS, ROUND_LABELS } from '../utils/knockout';
 import { formatRefreshTime } from '../utils/format';
+import type { KnockoutRound } from '../types/tournament';
 
 type View = 'standings' | 'groups' | 'results' | 'breakdown';
+type Stage = 'group' | KnockoutRound;
 
 export default function DashboardPage() {
   const { snapshot, loading, refreshing, error, lastUpdated, lastRefreshed, source, refresh } = useTournamentData();
   const [view, setView] = useState<View>('standings');
+  const [stage, setStage] = useState<Stage>('group');
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   // Kept separate from the selection so the dialog content stays rendered during its close animation.
   const [detailsOpen, setDetailsOpen] = useState(false);
@@ -81,19 +86,46 @@ export default function DashboardPage() {
           <>
             {view === 'standings' && (
               <>
-                <SummaryCards standings={snapshot.standings} matches={snapshot.matches} />
-                <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-                  <Leaderboard standings={snapshot.standings} onSelectTeam={openTeam} />
-                  <MatchResults
-                    matches={snapshot.matches}
+                <Paper className="overflow-hidden">
+                  <Tabs
+                    value={stage}
+                    onChange={(_, s: Stage) => setStage(s)}
+                    variant="scrollable"
+                    allowScrollButtonsMobile
+                    aria-label="Tournament stage"
+                    sx={{ minHeight: 44, '& .MuiTab-root': { minHeight: 44 } }}
+                  >
+                    <Tab value="group" label="Group Stage" />
+                    {KNOCKOUT_ROUNDS.map((r) => (
+                      <Tab key={r} value={r} label={ROUND_LABELS[r]} />
+                    ))}
+                  </Tabs>
+                </Paper>
+                {stage === 'group' ? (
+                  <>
+                    <SummaryCards standings={snapshot.standings} matches={snapshot.matches} />
+                    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+                      <Leaderboard standings={snapshot.standings} onSelectTeam={openTeam} />
+                      <MatchResults
+                        matches={snapshot.matches}
+                        teamsById={teamsById}
+                        onSelectTeam={openTeam}
+                        limit={4}
+                        onViewAll={() => setView('results')}
+                        compact
+                      />
+                    </div>
+                    <DataIssues matches={snapshot.matches} issues={snapshot.issues} />
+                  </>
+                ) : (
+                  <KnockoutStage
+                    round={stage}
+                    matches={snapshot.data.knockout}
                     teamsById={teamsById}
                     onSelectTeam={openTeam}
-                    limit={4}
-                    onViewAll={() => setView('results')}
-                    compact
+                    noKnockoutData={snapshot.data.knockout.length === 0}
                   />
-                </div>
-                <DataIssues matches={snapshot.matches} issues={snapshot.issues} />
+                )}
               </>
             )}
             {view === 'groups' && (

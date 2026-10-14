@@ -56,7 +56,8 @@ export default function AdminUploadPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const { data: history, error: historyError, reload: loadHistory } = useRemoteData(getUploadHistory, 'Upload history could not be loaded.');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
+  const file = files.length > 0 ? { name: files.map((f) => f.name).join(' + '), size: files.reduce((n, f) => n + f.size, 0) } : null;
   const [preview, setPreview] = useState<UploadResponse | null>(null);
   const [busy, setBusy] = useState<'preview' | 'publish' | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -98,25 +99,27 @@ export default function AdminUploadPage() {
   };
 
   const reset = () => {
-    setFile(null);
+    setFiles([]);
     setPreview(null);
     if (inputRef.current) inputRef.current.value = '';
   };
 
-  const choose = async (selected: File | undefined) => {
+  const choose = async (list: FileList | null) => {
     setMessage(null);
     setPreview(null);
-    if (!selected) return;
+    const selected = Array.from(list ?? []);
+    if (selected.length === 0) return;
     // Quick checks for fast feedback; the server repeats all of them.
-    if (!/\.(csv|xlsx|xls)$/i.test(selected.name)) {
-      setMessage({ severity: 'error', text: 'Choose a .csv, .xlsx or .xls file.' });
+    const bad = selected.find((f) => !/\.(csv|xlsx|xls)$/i.test(f.name));
+    if (bad) {
+      setMessage({ severity: 'error', text: `${bad.name}: choose .csv, .xlsx or .xls files only.` });
       return;
     }
-    if (selected.size > MAX_UPLOAD_MB * 1024 * 1024) {
-      setMessage({ severity: 'error', text: `The file is larger than ${MAX_UPLOAD_MB} MB.` });
+    if (selected.reduce((n, f) => n + f.size, 0) > MAX_UPLOAD_MB * 1024 * 1024) {
+      setMessage({ severity: 'error', text: `The files are larger than ${MAX_UPLOAD_MB} MB together.` });
       return;
     }
-    setFile(selected);
+    setFiles(selected);
     setBusy('preview');
     try {
       const { status, body } = await sendUpload(selected, 'preview');
@@ -138,7 +141,7 @@ export default function AdminUploadPage() {
     setBusy('publish');
     setMessage(null);
     try {
-      const { status, body } = await sendUpload(file, 'publish');
+      const { status, body } = await sendUpload(files, 'publish');
       if (status === 200 && body.publishedAt) {
         setMessage({
           severity: 'success',
@@ -218,8 +221,9 @@ export default function AdminUploadPage() {
           Upload results
         </Typography>
         <Typography variant="body2" color="text.secondary" className="!mb-4">
-          Upload the complete tournament file (the “Group match register” sheet) as .xlsx, .xls or .csv, up to {MAX_UPLOAD_MB}{' '}
-          MB. Each upload replaces the published results as a whole. It is checked first and only published after you
+          Upload the complete tournament workbook (.xlsx/.xls with the “Group match register” and “Finals” sheets), or
+          the sheets exported as CSV — select the group results CSV and the finals CSV together. Up to {MAX_UPLOAD_MB} MB in
+          total. Each upload replaces the published results as a whole. It is checked first and only published after you
           confirm; if anything is wrong, the current results stay live.
         </Typography>
 
@@ -230,9 +234,9 @@ export default function AdminUploadPage() {
             onClick={() => inputRef.current?.click()}
             disabled={busy !== null}
           >
-            {file ? 'Choose another file' : 'Choose file'}
+            {file ? 'Choose other files' : 'Choose file(s)'}
           </Button>
-          <input ref={inputRef} type="file" accept={ACCEPT} hidden onChange={(e) => void choose(e.target.files?.[0])} />
+          <input ref={inputRef} type="file" accept={ACCEPT} multiple hidden onChange={(e) => void choose(e.target.files)} />
           {file && (
             <Typography variant="body2">
               <strong>{file.name}</strong> · {(file.size / 1024).toFixed(0)} KB
@@ -475,6 +479,11 @@ function PreviewPanel({ preview }: { preview: UploadResponse }) {
           <Chip label={`${s.completed} completed`} color="success" variant="outlined" />
           <Chip label={`${s.pending} to play`} variant="outlined" />
           {s.groups.length > 0 && <Chip label={`Groups ${s.groups.join(', ')}`} variant="outlined" />}
+          <Chip
+            label={s.knockout > 0 ? `${plural(s.knockout, 'knockout match', 'knockout matches')}` : 'No finals sheet'}
+            variant="outlined"
+            color={s.knockout > 0 ? 'primary' : 'default'}
+          />
           {s.matchSheet && <Chip label={`Sheet: ${s.matchSheet}`} variant="outlined" />}
         </div>
       )}

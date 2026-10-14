@@ -91,6 +91,19 @@ export interface PreviewMatch {
   reasons: string[];
 }
 
+export interface PreviewKnockout {
+  id: string;
+  round: 'QF' | 'SF' | 'F';
+  teamA: string | null;
+  teamB: string | null;
+  racksA: number | null;
+  racksB: number | null;
+  target: number | null;
+  winner: string | null;
+  state: 'played' | 'pending' | 'awaiting' | 'flagged';
+  reasons: string[];
+}
+
 export interface UploadResponse {
   mode?: 'preview' | 'publish';
   ok?: boolean;
@@ -101,18 +114,19 @@ export interface UploadResponse {
   errorCount?: number;
   teams?: PreviewTeam[];
   matches?: PreviewMatch[];
+  knockout?: PreviewKnockout[];
   uploadId?: string;
   publishedAt?: string;
 }
 
-/** Sends the file to the upload-dataset Edge Function. "preview" never changes anything. */
-export async function sendUpload(file: File, mode: 'preview' | 'publish'): Promise<{ status: number; body: UploadResponse }> {
+/** Sends the file(s) to the upload-dataset Edge Function. "preview" never changes anything. */
+export async function sendUpload(files: File[], mode: 'preview' | 'publish'): Promise<{ status: number; body: UploadResponse }> {
   const { data } = await client().auth.getSession();
   const token = data.session?.access_token;
   if (!token || !functionsUrl) throw new Error('Your session has expired. Please sign in again.');
 
   const form = new FormData();
-  form.append('file', file);
+  for (const file of files) form.append('file', file);
   form.append('mode', mode);
   let res: Response;
   try {

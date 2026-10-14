@@ -27,8 +27,11 @@ export interface ImportSummary {
   completed: number;
   pending: number;
   groups: string[];
+  /** Knockout (finals bracket) matches found, played or not. */
+  knockout: number;
   matchSheet: string | null;
   teamSheet: string | null;
+  knockoutSheet: string | null;
 }
 
 export interface ImportValidation {
@@ -68,14 +71,19 @@ export function checkUploadFile(fileName: string, bytes: Uint8Array, maxBytes = 
   return { ok: true, format };
 }
 
-/** Parses and validates one uploaded file. Never throws for bad content — problems become errors. */
-export function validateImport(file: WorkbookFile): ImportValidation {
-  const empty: ImportSummary = { teams: 0, matches: 0, completed: 0, pending: 0, groups: [], matchSheet: null, teamSheet: null };
+/**
+ * Parses and validates an upload: one workbook, or several files read together (e.g. the group
+ * results CSV plus the finals CSV). Never throws for bad content — problems become errors.
+ */
+export function validateImport(files: WorkbookFile | WorkbookFile[]): ImportValidation {
+  const empty: ImportSummary = {
+    teams: 0, matches: 0, completed: 0, pending: 0, groups: [], knockout: 0, matchSheet: null, teamSheet: null, knockoutSheet: null,
+  };
   const fail = (errors: ImportIssue[]): ImportValidation => ({ ok: false, errors, warnings: [], summary: empty, data: null, matches: [] });
 
   let data: TournamentData;
   try {
-    data = parseWorkbookFiles([file]);
+    data = parseWorkbookFiles(Array.isArray(files) ? files : [files]);
   } catch (e) {
     if (e instanceof WorkbookStructureError) {
       const found = e.sheets.map((s) => `${s.name}: ${s.headers.join(' | ') || '(empty)'}`).join('; ');
@@ -104,6 +112,16 @@ export function validateImport(file: WorkbookFile): ImportValidation {
     }
   }
 
+  for (const k of data.knockout) {
+    if (k.state === 'flagged') errors.push({ message: k.reasons.join(' '), source: k.source, matchId: k.id });
+  }
+  const knockoutIds = data.knockout.map((k) => k.id.toLowerCase());
+  for (const k of data.knockout) {
+    if (knockoutIds.filter((x) => x === k.id.toLowerCase()).length > 1) {
+      errors.push({ message: `Knockout match id "${k.id}" appears more than once.`, source: k.source, matchId: k.id });
+    }
+  }
+
   const groups = [...new Set(data.teams.map((t) => t.group).filter((g): g is string => !!g))].sort();
   const summary: ImportSummary = {
     teams: data.teams.length,
@@ -111,8 +129,10 @@ export function validateImport(file: WorkbookFile): ImportValidation {
     completed: matches.filter((m) => m.state === 'counted').length,
     pending: matches.filter((m) => m.state === 'pending').length,
     groups,
+    knockout: data.knockout.length,
     matchSheet: data.meta.matchSheet,
     teamSheet: data.meta.teamSheet,
+    knockoutSheet: data.meta.knockoutSheet,
   };
 
   return {

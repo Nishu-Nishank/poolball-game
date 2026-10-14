@@ -182,7 +182,10 @@ Duplicates and invalid addresses are rejected by the database. All changes are w
 
 `/admin` shows what is live, the last successful upload and the latest upload status. Workflow:
 
-1. Choose a `.xlsx`, `.xls` or `.csv` file (up to `VITE_MAX_UPLOAD_MB`).
+1. Choose the tournament workbook (`.xlsx`/`.xls` containing the group register and the finals
+   sheet), or the sheets exported as `.csv` — select the group results CSV **and** the finals CSV
+   together (up to `VITE_MAX_UPLOAD_MB` in total). Without a finals sheet the knockout tabs stay
+   empty; the group standings are unaffected.
 2. The server checks extension, size and real content, parses the file and validates it. A preview
    shows summary chips, all errors/warnings and the parsed matches and teams. Nothing is stored yet.
 3. **Publish results** (enabled only when validation passed) → confirmation dialog → the Edge
@@ -271,6 +274,12 @@ After deployment:
 | Loser balls | Balls lost by the losing team → points to the winner (0 is valid) |
 | Match status | `Complete` counts; `To play` is shown under Upcoming Matches |
 | Ball diff A, Organizer notes | Ignored |
+
+**Finals sheet** ("Finals bracket"): the table below the drawn bracket, with columns `Match`
+(`QF1`…`QF4`, `SF1`, `SF2`, `Final`), `Team A` / `A ID`, `Team B` / `B ID`, `Racks A`, `Racks B`,
+`Status`, `Winner ID` and `Target` (racks needed to win). Rows are shown on the dashboard under
+*Standings → Quarter finals / Semi finals / Finals*; a winner is taken from `Winner ID` or, when that
+is empty, from the side that reached the target. Knockout results never affect the points table.
 
 Title rows above the table and instruction rows below it are skipped. The parser
 (`src/services/excelParser.ts`) finds tables by header names, normalised (lower-case, `#` → `no`,

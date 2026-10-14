@@ -119,15 +119,41 @@ export interface DataIssue {
   source?: SourceRef;
 }
 
+export type KnockoutRound = 'QF' | 'SF' | 'F';
+
+/** A knockout (finals bracket) match, played as a race to `target` racks. Not part of the points table. */
+export interface KnockoutMatch {
+  /** Match id from the workbook, e.g. "QF1", "SF2", "Final". */
+  id: string;
+  round: KnockoutRound;
+  teamA: string | null;
+  teamB: string | null;
+  teamARaw: string;
+  teamBRaw: string;
+  racksA: number | null;
+  racksB: number | null;
+  /** Racks needed to win the match, if the workbook states it. */
+  target: number | null;
+  winner: string | null;
+  statusRaw: string;
+  state: 'played' | 'pending' | 'awaiting' | 'flagged';
+  reasons: string[];
+  source: SourceRef;
+  order: number;
+}
+
 export interface TournamentData {
   teams: Team[];
   matches: MatchRecord[];
+  /** Finals bracket matches (empty when the workbook has no finals sheet). */
+  knockout: KnockoutMatch[];
   issues: DataIssue[];
   meta: {
     fileName: string;
     sheetNames: string[];
     teamSheet: string | null;
     matchSheet: string;
+    knockoutSheet: string | null;
     tournamentStatus: string | null;
   };
 }

@@ -25,8 +25,12 @@ export function decodeDataset(raw: unknown): TournamentData {
   ) {
     throw new Error('The published tournament data has an unsupported format.');
   }
+  // Datasets published before the finals bracket existed have no knockout fields.
+  const meta = data.meta as Partial<TournamentData['meta']>;
   return {
     ...(data as TournamentData),
     matches: data.matches.map((m: MatchRecord) => ({ ...m, date: m.date ? new Date(m.date) : null })),
+    knockout: Array.isArray(data.knockout) ? data.knockout : [],
+    meta: { ...meta, knockoutSheet: meta.knockoutSheet ?? null } as TournamentData['meta'],
   };
 }

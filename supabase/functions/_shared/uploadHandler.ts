@@ -11,7 +11,7 @@
  */
 import { checkUploadFile, DEFAULT_MAX_UPLOAD_BYTES, validateImport, type ImportIssue, type ImportSummary } from './tournament/services/importValidation.ts';
 import { encodeDataset } from './tournament/services/datasetCodec.ts';
-import type { EvaluatedMatch, FileFormat, Team } from './tournament/types/tournament.ts';
+import type { EvaluatedMatch, FileFormat, KnockoutMatch, Team, WorkbookFile } from './tournament/types/tournament.ts';
 
 export type Role = 'admin' | 'superadmin';
 
@@ -59,6 +59,7 @@ export interface UploadConfig {
 export const DEFAULT_UPLOAD_CONFIG: UploadConfig = { maxBytes: DEFAULT_MAX_UPLOAD_BYTES, allowedOrigins: ['*'] };
 
 const MAX_LISTED_ISSUES = 200;
+const MAX_FILES = 5;
 const CONTENT_TYPES: Record<FileFormat, string> = {
   csv: 'text/csv',
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -114,16 +115,26 @@ export async function handleUploadRequest(req: Request, deps: UploadDeps, config
   } catch {
     return json(400, { error: 'Send the file as multipart/form-data.' });
   }
-  const file = form.get('file');
+  // One workbook, or several files read together (e.g. group results CSV + finals CSV).
+  const files = form.getAll('file').filter((f): f is File => f instanceof File);
   const mode = form.get('mode') === 'publish' ? 'publish' : 'preview';
-  if (!(file instanceof File)) return json(400, { error: 'No file was provided.' });
-  if (file.size > config.maxBytes) return json(413, { error: tooLarge(config.maxBytes) });
+  if (files.length === 0) return json(400, { error: 'No file was provided.' });
+  if (files.length > MAX_FILES) return json(400, { error: `Upload at most ${MAX_FILES} files at a time.` });
+  if (files.reduce((n, f) => n + f.size, 0) > config.maxBytes) return json(413, { error: tooLarge(config.maxBytes) });
 
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  const check = checkUploadFile(file.name, bytes, config.maxBytes);
-  if (!check.ok) return json(400, { error: check.error });
+  const workbookFiles: WorkbookFile[] = [];
+  const stored: { name: string; bytes: Uint8Array; format: FileFormat }[] = [];
+  for (const file of files) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const check = checkUploadFile(file.name, bytes, config.maxBytes);
+    if (!check.ok) return json(400, { error: `${file.name}: ${check.error}` });
+    workbookFiles.push({ data: bytes.slice().buffer, fileName: file.name, format: check.format });
+    stored.push({ name: file.name, bytes, format: check.format });
+  }
+  const file = { name: files.map((f) => f.name).join(' + '), size: stored.reduce((n, f) => n + f.bytes.length, 0) };
+  const check = { format: stored[0].format };
 
-  const validation = validateImport({ data: bytes.slice().buffer, fileName: file.name, format: check.format });
+  const validation = validateImport(workbookFiles);
   const report = {
     ok: validation.ok,
     summary: validation.summary,
@@ -138,6 +149,7 @@ export async function handleUploadRequest(req: Request, deps: UploadDeps, config
       ...report,
       teams: (validation.data?.teams ?? []).map(previewTeam),
       matches: validation.matches.map((m) => previewMatch(m, validation.data?.teams ?? [])),
+      knockout: (validation.data?.knockout ?? []).map((k) => previewKnockout(k, validation.data?.teams ?? [])),
     });
   }
 
@@ -147,7 +159,7 @@ export async function handleUploadRequest(req: Request, deps: UploadDeps, config
     uploadId = await deps.createUpload({
       file_name: file.name.slice(0, 255),
       file_format: check.format,
-      file_size: bytes.length,
+      file_size: file.size,
       uploaded_by: user.id,
       uploaded_by_email: user.email,
     });
@@ -159,9 +171,11 @@ export async function handleUploadRequest(req: Request, deps: UploadDeps, config
     deps.finishUpload(uploadId, { ...patch, completed_at: new Date().toISOString() });
 
   try {
-    const path = `${uploadId}/${safeFileName(file.name)}`;
-    await deps.storeOriginal(path, bytes, CONTENT_TYPES[check.format]);
-    await deps.setStoragePath(uploadId, path);
+    // All originals live under one folder per upload; the folder path is what gets deleted later.
+    for (const s of stored) {
+      await deps.storeOriginal(`${uploadId}/${safeFileName(s.name)}`, s.bytes, CONTENT_TYPES[s.format]);
+    }
+    await deps.setStoragePath(uploadId, `${uploadId}/`);
 
     if (!validation.ok || !validation.data) {
       await finish({
@@ -227,6 +241,22 @@ function previewMatch(m: EvaluatedMatch, teams: Team[]) {
     points: m.points,
     state: m.state,
     reasons: m.reasons,
+  };
+}
+
+function previewKnockout(k: KnockoutMatch, teams: Team[]) {
+  const find = (id: string | null) => teams.find((t) => t.id === id);
+  return {
+    id: k.id,
+    round: k.round,
+    teamA: k.teamA ? label(find(k.teamA), k.teamARaw) : k.teamARaw || null,
+    teamB: k.teamB ? label(find(k.teamB), k.teamBRaw) : k.teamBRaw || null,
+    racksA: k.racksA,
+    racksB: k.racksB,
+    target: k.target,
+    winner: k.winner ? label(find(k.winner), '') : null,
+    state: k.state,
+    reasons: k.reasons,
   };
 }
 

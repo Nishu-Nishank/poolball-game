@@ -70,7 +70,16 @@ export function supabaseUploadDeps(admin: SupabaseClient): UploadDeps {
     },
 
     async removeStored(path) {
-      const { error } = await admin.storage.from(UPLOAD_BUCKET).remove([path]);
+      const bucket = admin.storage.from(UPLOAD_BUCKET);
+      // A trailing slash means "the upload's folder": remove every file in it.
+      const names = path.endsWith('/')
+        ? await bucket.list(path.replace(/\/$/, '')).then(({ data, error }) => {
+            fail('list stored files', error);
+            return (data ?? []).map((o) => `${path}${o.name}`);
+          })
+        : [path];
+      if (names.length === 0) return;
+      const { error } = await bucket.remove(names);
       fail('remove stored file', error);
     },
   };
