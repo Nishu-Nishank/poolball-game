@@ -32,6 +32,7 @@ export default function DashboardPage() {
   };
 
   const teamsById = useMemo(() => new Map(snapshot?.data.teams.map((t) => [t.id, t]) ?? []), [snapshot]);
+  const pointsByTeam = useMemo(() => new Map(snapshot?.standings.map((s) => [s.team.id, s.points]) ?? []), [snapshot]);
   const hasGroups = snapshot?.data.teams.some((t) => t.group) ?? false;
   const selected = snapshot?.standings.find((s) => s.team.id === selectedTeamId) ?? null;
 
@@ -122,6 +123,7 @@ export default function DashboardPage() {
                     round={stage}
                     matches={snapshot.data.knockout}
                     teamsById={teamsById}
+                    pointsByTeam={pointsByTeam}
                     onSelectTeam={openTeam}
                     noKnockoutData={snapshot.data.knockout.length === 0}
                   />

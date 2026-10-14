@@ -1,4 +1,4 @@
-import { ButtonBase, Chip, Paper, Typography } from '@mui/material';
+import { ButtonBase, Chip, Paper, Tooltip, Typography } from '@mui/material';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import type { KnockoutMatch, KnockoutRound, Team } from '../../types/tournament';
 import { teamLabel } from '../../utils/leaderboard';
@@ -10,6 +10,8 @@ interface Props {
   round: KnockoutRound;
   matches: KnockoutMatch[];
   teamsById: Map<string, Team>;
+  /** Each team's total points in the overall leaderboard (group + knockout). */
+  pointsByTeam: Map<string, number>;
   onSelectTeam: (teamId: string) => void;
   /** True when the published data has no finals sheet at all. */
   noKnockoutData: boolean;
@@ -23,7 +25,7 @@ const STATE: Record<KnockoutMatch['state'], { label: string; color: 'success' | 
 };
 
 /** One knockout round as scorecards: rack scores, winner highlighted, placeholders for unknown teams. */
-export function KnockoutStage({ round, matches, teamsById, onSelectTeam, noKnockoutData }: Props) {
+export function KnockoutStage({ round, matches, teamsById, pointsByTeam, onSelectTeam, noKnockoutData }: Props) {
   const rows = matches.filter((m) => m.round === round).sort((a, b) => a.order - b.order);
   const title = ROUND_LABELS[round];
   const champion = round === 'F' ? rows.find((m) => m.state === 'played' && m.winner) : undefined;
@@ -62,7 +64,7 @@ export function KnockoutStage({ round, matches, teamsById, onSelectTeam, noKnock
       )}
       <div className={rows.length === 1 ? 'grid grid-cols-1 gap-3 md:max-w-xl' : 'grid grid-cols-1 gap-3 md:grid-cols-2'}>
         {rows.map((m) => (
-          <KnockoutCard key={`${m.id}-${m.source.row}`} match={m} teamsById={teamsById} onSelectTeam={onSelectTeam} />
+          <KnockoutCard key={`${m.id}-${m.source.row}`} match={m} teamsById={teamsById} pointsByTeam={pointsByTeam} onSelectTeam={onSelectTeam} />
         ))}
       </div>
       <Typography variant="caption" color="text.secondary">
@@ -73,7 +75,17 @@ export function KnockoutStage({ round, matches, teamsById, onSelectTeam, noKnock
   );
 }
 
-function KnockoutCard({ match: m, teamsById, onSelectTeam }: { match: KnockoutMatch; teamsById: Map<string, Team>; onSelectTeam: (id: string) => void }) {
+function KnockoutCard({
+  match: m,
+  teamsById,
+  pointsByTeam,
+  onSelectTeam,
+}: {
+  match: KnockoutMatch;
+  teamsById: Map<string, Team>;
+  pointsByTeam: Map<string, number>;
+  onSelectTeam: (id: string) => void;
+}) {
   const state = STATE[m.state];
   const heading = [m.id, m.target && `first to ${m.target} ${m.target === 1 ? 'rack' : 'racks'}`].filter(Boolean).join(' · ');
   return (
@@ -85,8 +97,8 @@ function KnockoutCard({ match: m, teamsById, onSelectTeam }: { match: KnockoutMa
         <Chip size="small" label={state.label} color={state.color} variant={m.state === 'played' ? 'filled' : 'outlined'} />
       </div>
       <div className="flex flex-col divide-y divide-slate-100">
-        <Side teamId={m.teamA} raw={m.teamARaw} racks={m.racksA} winner={m.winner} teamsById={teamsById} onSelectTeam={onSelectTeam} fallback="To be decided" />
-        <Side teamId={m.teamB} raw={m.teamBRaw} racks={m.racksB} winner={m.winner} teamsById={teamsById} onSelectTeam={onSelectTeam} fallback="To be decided" />
+        <Side teamId={m.teamA} raw={m.teamARaw} racks={m.racksA} winner={m.winner} teamsById={teamsById} pointsByTeam={pointsByTeam} onSelectTeam={onSelectTeam} fallback="To be decided" />
+        <Side teamId={m.teamB} raw={m.teamBRaw} racks={m.racksB} winner={m.winner} teamsById={teamsById} pointsByTeam={pointsByTeam} onSelectTeam={onSelectTeam} fallback="To be decided" />
       </div>
       {m.state === 'played' && m.winner && m.ballsLost !== null && (
         <div
@@ -122,12 +134,14 @@ function Side(props: {
   racks: number | null;
   winner: string | null;
   teamsById: Map<string, Team>;
+  pointsByTeam: Map<string, number>;
   onSelectTeam: (id: string) => void;
   fallback: string;
 }) {
   const team = props.teamId ? props.teamsById.get(props.teamId) : undefined;
   const won = props.winner !== null && props.winner === props.teamId;
   const lost = props.winner !== null && props.teamId !== null && props.winner !== props.teamId;
+  const total = props.teamId ? props.pointsByTeam.get(props.teamId) : undefined;
   const score = (
     <Typography
       component="span"
@@ -150,6 +164,17 @@ function Side(props: {
         )}
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        {total !== undefined && (
+          <Tooltip title="Total points in the overall leaderboard (group stage + knockout)">
+            <Chip
+              size="small"
+              variant="outlined"
+              label={`${total} pts`}
+              className="tabular-nums"
+              sx={{ fontWeight: 700, borderColor: colors.navy, color: colors.navy }}
+            />
+          </Tooltip>
+        )}
         {won && <Chip size="small" label="WON" sx={{ bgcolor: colors.win, color: '#fff' }} />}
         {score}
       </div>
