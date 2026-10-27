@@ -4,6 +4,7 @@ import type { KnockoutMatch, KnockoutRound, Team } from '../../types/tournament'
 import { teamLabel } from '../../utils/leaderboard';
 import { ROUND_LABELS } from '../../utils/knockout';
 import { TeamIdentity } from '../common/TeamIdentity';
+import { FinalReveal } from './FinalReveal';
 import { colors } from '../../theme';
 
 interface Props {
@@ -44,7 +45,7 @@ export function KnockoutStage({ round, matches, teamsById, pointsByTeam, onSelec
     );
   }
 
-  return (
+  const section = (
     <section aria-label={title} className="flex flex-col gap-4">
       {championTeam && (
         <Paper className="flex items-center gap-3 px-4 py-3" sx={{ bgcolor: colors.navy, color: '#fff', borderColor: colors.navy }}>
@@ -73,6 +74,10 @@ export function KnockoutStage({ round, matches, teamsById, pointsByTeam, onSelec
       </Typography>
     </section>
   );
+
+  // The Finals tab opens with a short sparkle animation before the decided result is shown.
+  // FinalReveal only exists while this round is on screen, so it replays each time the tab is opened.
+  return championTeam ? <FinalReveal>{section}</FinalReveal> : section;
 }
 
 function KnockoutCard({
